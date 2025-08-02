@@ -224,6 +224,25 @@ def cancel_order(api_key, secret_key, symbol, order_id):
     response = requests.delete(url, headers=headers)
     return response.json()
 
+def firebase_speichere_ordergroesse(asset, betrag, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
+    data = {"usdt_amount": betrag}
+    response = requests.put(url, json=data)
+    return f"Ordergröße für {asset} gespeichert: {betrag}, Status: {response.status_code}"
+
+def firebase_lese_ordergroesse(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return None
+    data = response.json()
+    return float(data.get("usdt_amount", 0)) if isinstance(data, dict) else None
+
+def firebase_loesche_ordergroesse(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
+    response = requests.delete(url)
+    return f"Ordergröße für {asset} gelöscht, Status: {response.status_code}"
+
 def firebase_speichere_kaufpreis(asset, price, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
     data = {"price": price}
@@ -273,50 +292,84 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 def webhook():
     data = request.json
     logs = []
-    leverage = data.get("leverage", 1)
+
+    # Eingabewerte
+    pyramiding = float(data.get("pyramiding", 1))
+    sicherheit = float(data.get("sicherheit", 0))
     sell_percentage = data.get("sell_percentage")
     api_key = data.get("api_key")
     secret_key = data.get("secret_key")
     symbol = data.get("symbol", "BTC-USDT")
-    usdt_amount = data.get("usdt_amount")
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
 
-    if not api_key or not secret_key or not usdt_amount:
-        return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
+    if not api_key or not secret_key:
+        return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
+
+    base_asset = symbol.split("-")[0]
+    available_usdt = 0.0
 
     # 0. USDT-Guthaben vor Order abrufen
     try:
         balance_response = get_futures_balance(api_key, secret_key)
         logs.append(f"Balance Response: {balance_response}")
-        available_usdt = 0.0
         if balance_response.get("code") == 0:
             balance_data = balance_response.get("data", {}).get("balance", {})
             available_usdt = float(balance_data.get("availableMargin", 0))
             logs.append(f"Freies USDT Guthaben: {available_usdt}")
         else:
             logs.append("Fehler beim Abrufen der Balance.")
-            
     except Exception as e:
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
-    # 1. Hebel setzen (neu)
+    # 1. Hebel setzen
     try:
-        logs.append(f"Setze Hebel auf {leverage} für {symbol} ({position_side})...")
-        leverage_response = set_leverage(api_key, secret_key, symbol, leverage, position_side)
+        logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
+        leverage_response = set_leverage(api_key, secret_key, symbol, pyramiding, position_side)
         logs.append(f"Hebel gesetzt: {leverage_response}")
     except Exception as e:
         logs.append(f"Fehler beim Setzen des Hebels: {e}")
 
-    # 1.2. Market-Order ausführen
+    # 2. Offene Orders abrufen
+    open_orders = {}
+    try:
+        open_orders = get_open_orders(api_key, secret_key, symbol)
+        logs.append(f"Open Orders: {open_orders}")
+    except Exception as e:
+        logs.append(f"Fehler bei Orderprüfung: {e}")
+
+    # 3. Ordergröße ermitteln (Compounding-Logik)
+    usdt_amount = 0
+    if firebase_secret:
+        try:
+            open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
+
+            if open_sell_orders_exist:
+                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
+                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
+            else:
+                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
+                if available_usdt is not None and pyramiding > 0:
+                    usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
+                    logs.append(f"Neue Ordergröße berechnet: (Balance {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding} = {usdt_amount}")
+                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
+
+    # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
     order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
-    # 2. Positionsgröße ermitteln
+    # 5. Positionsgröße ermitteln
     try:
         sell_quantity, positions_raw = get_current_position(api_key, secret_key, symbol, position_side, logs)
         if sell_quantity == 0:
@@ -328,49 +381,32 @@ def webhook():
         sell_quantity = 0
         logs.append(f"Fehler bei Positionsabfrage: {e}")
 
-    # 3. Sell-Limit-Orders prüfen
-    open_orders = {}
-    sell_limit_orders_exist = False
-    try:
-        open_orders = get_open_orders(api_key, secret_key, symbol)
-        logs.append(f"Open Orders: {open_orders}")
-        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-            for order in open_orders.get("data", {}).get("orders", []):
-                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                    sell_limit_orders_exist = True
-                    break
-    except Exception as e:
-        logs.append(f"Fehler bei Orderprüfung: {e}")
-
-    # 4. Kaufpreise löschen (nur wenn keine Sell-Limit-Orders existieren)
-    if firebase_secret and not sell_limit_orders_exist:
+    # 6. Kaufpreise ggf. löschen
+    if firebase_secret and not open_sell_orders_exist:
         try:
-            base_asset = symbol.split("-")[0]
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
 
-    # 5. Kaufpreis speichern
+    # 7. Kaufpreis speichern
     if firebase_secret and price_from_webhook:
         try:
-            base_asset = symbol.split("-")[0]
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
 
-    # 6. Durchschnitt berechnen
+    # 8. Durchschnitt berechnen
     durchschnittspreis = None
     kaufpreise = []
     if firebase_secret:
         try:
-            base_asset = symbol.split("-")[0]
             kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
             durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
             logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
         except Exception as e:
             logs.append(f"Fehler bei Durchschnittsberechnung: {e}")
 
-    # 7. Alte Sell-Limit-Orders löschen
+    # 9. Alte Sell-Limit-Orders löschen
     try:
         if isinstance(open_orders, dict) and open_orders.get("code") == 0:
             for order in open_orders.get("data", {}).get("orders", []):
@@ -380,7 +416,7 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler beim Löschen der Sell-Limit-Orders: {e}")
 
-    # 8. Neue Limit-Order setzen (nur mit Durchschnittspreis)
+    # 10. Neue Limit-Order setzen
     limit_order_response = None
     try:
         if durchschnittspreis and sell_percentage:
@@ -389,21 +425,20 @@ def webhook():
             limit_price = 0
 
         if sell_quantity > 0 and limit_price > 0:
-            limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side="LONG")
+            limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
             logs.append(f"Limit-Order gesetzt (auf Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
         else:
             logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
     except Exception as e:
         logs.append(f"Fehler bei Limit-Order: {e}")
 
-    # 9. Alarm senden
-    alarm_trigger = int(data.get("alarm", 0))  # Alarm-Level vom Webhook
+    # 11. Alarm senden
+    alarm_trigger = int(data.get("alarm", 0))
     anzahl_käufe = len(kaufpreise or [])
     anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
 
     if anzahl_nachkäufe >= alarm_trigger:
         try:
-            anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
             nachricht = f"{base_asset}:\nNachkäufe: {anzahl_nachkäufe}"
             telegram_result = sende_telegram_nachricht(nachricht)
             logs.append(f"Telegram gesendet: {telegram_result}")
@@ -428,7 +463,6 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "logs": logs
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
