@@ -215,31 +215,6 @@ def get_open_orders(api_key, secret_key, symbol):
 
     return data
 
-def firebase_speichere_ordergroesse(asset, amount, firebase_secret):
-    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
-    data = {"usdt_amount": round(amount, 6)}
-    response = requests.post(url, json=data)
-    return f"Ordergröße gespeichert für {asset}: {amount}, Status: {response.status_code}"
-
-def firebase_lese_ordergroesse(asset, firebase_secret):
-    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        return None
-    data = response.json()
-    if not data:
-        return None
-    # nehme den ersten gültigen Eintrag
-    for eintrag in data.values():
-        if isinstance(eintrag, dict) and "usdt_amount" in eintrag:
-            return float(eintrag["usdt_amount"])
-    return None
-
-def firebase_loesche_ordergroesse(asset, firebase_secret):
-    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
-    response = requests.delete(url)
-    return f"Ordergröße gelöscht für {asset}, Status: {response.status_code}"
-
 def cancel_order(api_key, secret_key, symbol, order_id):
     timestamp = int(time.time() * 1000)
     params = f"symbol={symbol}&orderId={order_id}&timestamp={timestamp}"
@@ -308,26 +283,24 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
 
-    if not api_key or not secret_key:
-        return jsonify({"error": True, "msg": "api_key and secret_key are required"}), 400
+    if not api_key or not secret_key or not usdt_amount:
+        return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
 
     # 0. USDT-Guthaben vor Order abrufen
-    # USDT-Balance abfragen
-    balance_response = get_futures_balance(api_key, secret_key)
-    available_usdt = 0
-    if balance_response.get("code") == 0:
-        available_usdt = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
-
-    usdt_amount = data.get("usdt_amount")
-    sicherheit = float(data.get("sicherheit", 0))
-    pyramiding = float(data.get("pyramiding", 1))
-
-    if usdt_amount is None:
-        usdt_amount = round((available_usdt - sicherheit) / pyramiding, 6)
-        logs.append(f"usdt_amount wurde intern berechnet: {usdt_amount}")
-    else:
-        usdt_amount = float(usdt_amount)
-        logs.append(f"usdt_amount aus Webhook genutzt: {usdt_amount}")
+    try:
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"Balance Response: {balance_response}")
+        available_usdt = 0.0
+        if balance_response.get("code") == 0:
+            balance_data = balance_response.get("data", {}).get("balance", {})
+            available_usdt = float(balance_data.get("availableMargin", 0))
+            logs.append(f"Freies USDT Guthaben: {available_usdt}")
+        else:
+            logs.append("Fehler beim Abrufen der Balance.")
+            
+    except Exception as e:
+        logs.append(f"Fehler bei Balance-Abfrage: {e}")
+        available_usdt = None
 
     # 1. Hebel setzen (neu)
     try:
@@ -337,39 +310,9 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler beim Setzen des Hebels: {e}")
 
-
-    # Orderbetrag berechnen basierend auf vorhandener Sell-Limit-Order oder nicht
-        base_asset = symbol.split("-")[0]
-        sicherheit = float(data.get("sicherheit", 0))
-        pyramiding = float(data.get("pyramiding", 1))
-
-        # Default auf Webhook-Wert, wird ggf. überschrieben
-        final_usdt_amount = float(usdt_amount)
-
-        try:
-            if not sell_limit_orders_exist:
-                logs.append(f"Keine offenen Sell-Limit-Orders für {symbol}, berechne neuen USDT-Betrag...")
-                if firebase_secret:
-                    logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
-                if usdt_balance_before_order is not None:
-                    berechneter_betrag = (usdt_balance_before_order - sicherheit) / pyramiding
-                    final_usdt_amount = round(berechneter_betrag, 6)
-                    logs.append(f"USDT-Betrag neu berechnet: {final_usdt_amount} (Balance {usdt_balance_before_order} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}")
-                    if firebase_secret:
-                        logs.append(firebase_speichere_ordergroesse(base_asset, final_usdt_amount, firebase_secret))
-            else:
-                logs.append(f"Offene Sell-Limit-Order gefunden für {symbol}, verwende gespeicherten USDT-Betrag aus Firebase...")
-                if firebase_secret:
-                    gespeicherter_betrag = firebase_lese_ordergroesse(base_asset, firebase_secret)
-                    if gespeicherter_betrag is not None:
-                        final_usdt_amount = round(gespeicherter_betrag, 6)
-                        logs.append(f"USDT-Betrag aus Firebase: {final_usdt_amount}")
-        except Exception as e:
-            logs.append(f"Fehler bei Orderbetragsberechnung: {e}")
-
     # 1.2. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
-    order_response = place_market_order(api_key, secret_key, symbol, final_usdt_amount, position_side)
+    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
@@ -482,7 +425,6 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
-        "usdt_balance_before_order": available_usdt,
         "logs": logs
     })
 
