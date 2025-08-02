@@ -366,6 +366,21 @@ def webhook():
                 usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
                 logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
             else:
+                if beenden == "ja":
+                    nachricht = f"✅ Order für {symbol} wurde beendet."
+                try:
+                    telegram_result = sende_telegram_nachricht(nachricht)
+                    logs.append(f"Telegram gesendet: {telegram_result}")
+                except Exception as e:
+                    logs.append(f"Fehler beim Telegram-Versand: {e}")
+                return jsonify({
+                    "error": False,
+                    "abgebrochen": True,
+                    "symbol": symbol,
+                    "grund": "beenden=ja und keine offene Sell-Limit-Order",
+                    "logs": logs
+                })
+              
                 logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
                 if available_usdt is not None and pyramiding > 0:
                     usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
