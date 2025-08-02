@@ -21,7 +21,7 @@
 #    "alarm": 1,
 #    "pyramiding": 8,
 #    "sicherheit": 96
-}
+#}
 
 from flask import Flask, request, jsonify
 import time
