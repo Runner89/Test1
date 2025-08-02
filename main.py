@@ -233,10 +233,21 @@ def firebase_speichere_ordergroesse(asset, betrag, firebase_secret):
 def firebase_lese_ordergroesse(asset, firebase_secret):
     url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
+    
     if response.status_code != 200:
         return None
-    data = response.json()
-    return float(data.get("usdt_amount", 0)) if isinstance(data, dict) else None
+
+    try:
+        data = response.json()
+        if isinstance(data, dict) and "usdt_amount" in data:
+            return float(data["usdt_amount"])
+        elif isinstance(data, (int, float)):
+            return float(data)  # Fallback, falls nur ein roher Wert gespeichert wurde
+    except Exception as e:
+        print(f"[Fehler] Firebase JSON Parsing: {e}")
+
+    return None
+
 
 def firebase_loesche_ordergroesse(asset, firebase_secret):
     url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
