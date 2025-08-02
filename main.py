@@ -309,22 +309,25 @@ def webhook():
     price_from_webhook = data.get("price")
 
     if not api_key or not secret_key or not usdt_amount:
-        return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
+        return jsonify({"error": True, "msg": "api_key and secret_key are required"}), 400
 
     # 0. USDT-Guthaben vor Order abrufen
-    try:
-        balance_response = get_futures_balance(api_key, secret_key)
-        logs.append(f"Balance Response: {balance_response}")
-        available_usdt = 0.0
-        if balance_response.get("code") == 0:
-            balance_data = balance_response.get("data", {}).get("balance", {})
-            available_usdt = float(balance_data.get("availableMargin", 0))
-            logs.append(f"Freies USDT Guthaben: {available_usdt}")
-        else:
-            logs.append("Fehler beim Abrufen der Balance.")
-    except Exception as e:
-        logs.append(f"Fehler bei Balance-Abfrage: {e}")
-        available_usdt = None
+    # USDT-Balance abfragen
+    balance_response = get_futures_balance(api_key, secret_key)
+    available_usdt = 0
+    if balance_response.get("code") == 0:
+        available_usdt = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
+
+    usdt_amount = data.get("usdt_amount")
+    sicherheit = float(data.get("sicherheit", 0))
+    pyramiding = float(data.get("pyramiding", 1))
+
+    if usdt_amount is None:
+        usdt_amount = round((available_usdt - sicherheit) / pyramiding, 6)
+        logs.append(f"usdt_amount wurde intern berechnet: {usdt_amount}")
+    else:
+        usdt_amount = float(usdt_amount)
+        logs.append(f"usdt_amount aus Webhook genutzt: {usdt_amount}")
 
     # 1. Hebel setzen (neu)
     try:
