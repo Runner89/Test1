@@ -376,6 +376,25 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
+    # 10. Verfügbares USDT-Guthaben abrufen
+    try:
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"Balance Response: {balance_response}")
+    
+        available_usdt = None
+        if balance_response.get("code") == 0:
+            balances = balance_response.get("data", [])
+            for asset in balances:
+                if asset.get("currency") == "USDT":
+                    available_usdt = float(asset.get("availableBalance", 0))
+                    break
+        else:
+            logs.append("Fehler beim Abrufen des Guthabens")
+
+except Exception as e:
+    available_usdt = None
+    logs.append(f"Fehler bei Balance-Abfrage: {e}")
+
     return jsonify({
         "error": False,
         "order_result": order_response,
@@ -387,6 +406,7 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
+        "available_usdt": available_usdt,
         "logs": logs
     })
 
