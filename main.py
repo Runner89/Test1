@@ -14,6 +14,9 @@ PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 OPEN_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/openOrders"
 FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
@@ -137,6 +140,17 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
         "positionSide": position_side,
         "timestamp": timestamp
     }
+
+def sende_telegram_nachricht(text):
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return "Telegram nicht konfiguriert"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text
+    }
+    response = requests.post(url, json=payload)
+    return f"Telegram Antwort: {response.status_code}"
 
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
     signature = generate_signature(secret_key, query_string)
@@ -330,6 +344,19 @@ def webhook():
             logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
     except Exception as e:
         logs.append(f"Fehler bei Limit-Order: {e}")
+
+    # 9. Alarm senden
+    alarm_trigger = int(data.get("alarm", 0))  # Alarm-Level vom Webhook
+    anzahl_käufe = len(kaufpreise or [])
+
+    if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger:
+        try:
+            base_asset = symbol.split("-")[0]
+            nachricht = f"🔔 Alarmstufe {alarm_trigger} erreicht für {base_asset}.\nNachkäufe: {anzahl_käufe}"
+            telegram_result = sende_telegram_nachricht(nachricht)
+            logs.append(f"Telegram gesendet: {telegram_result}")
+        except Exception as e:
+            logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
     return jsonify({
         "error": False,
