@@ -377,19 +377,19 @@ def webhook():
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
     # 10. Verfügbares USDT-Guthaben abrufen
-    try:
-        balance_response = get_futures_balance(api_key, secret_key)
-        logs.append(f"Balance Response: {balance_response}")
+        try:
+            balance_response = get_futures_balance(api_key, secret_key)
+            logs.append(f"Balance Response: {balance_response}")
     
-        available_usdt = None
-        if balance_response.get("code") == 0:
-            balances = balance_response.get("data", [])
-            for asset in balances:
-                if asset.get("currency") == "USDT":
-                    available_usdt = float(asset.get("availableBalance", 0))
-                    break
-        else:
-            logs.append("Fehler beim Abrufen des Guthabens")
+            available_usdt = None
+            if balance_response.get("code") == 0:
+                balances = balance_response.get("data", [])
+                for asset in balances:
+                    if asset.get("currency") == "USDT":
+                        available_usdt = float(asset.get("availableBalance", 0))
+                        break
+            else:
+                logs.append("Fehler beim Abrufen des Guthabens")
 
 except Exception as e:
     available_usdt = None
