@@ -361,8 +361,9 @@ def webhook():
     # 9. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))  # Alarm-Level vom Webhook
     anzahl_käufe = len(kaufpreise or [])
+    anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
 
-    if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger:
+    if anzahl_nachkäufe >= alarm_trigger:
         try:
             anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
             nachricht = f"{base_asset}:\nNachkäufe: {anzahl_nachkäufe}"
