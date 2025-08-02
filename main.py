@@ -1,4 +1,5 @@
 #Market Order mit Hebel wird gesetzt
+#Hebel muss in Bingx selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
 #Durschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
@@ -174,13 +175,6 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
-
-def get_available_usdt(balance_response):
-    balances = balance_response.get("data", {}).get("balance", [])
-    for asset_info in balances:
-        if asset_info.get("asset") == "USDT":
-            return float(asset_info.get("available", 0))
-    return 0.0
     
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -289,14 +283,27 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
 
-
     if not api_key or not secret_key or not usdt_amount:
         return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
 
-    balance_response = get_futures_balance(api_key, secret_key)
-    available_usdt = get_available_usdt(balance_response)
-    logs.append(f"Verfügbares USDT: {available_usdt}")
-    
+    # 0. USDT-Guthaben vor Order abrufen
+    try:
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"Balance Response: {balance_response}")
+        available_usdt = 0.0
+        if balance_response.get("code") == 0:
+            balances = balance_response.get("data", [])
+            for item in balances:
+                if item.get("asset") == "USDT":
+                    available_usdt = float(item.get("availableBalance", 0))
+                    logs.append(f"Freies USDT Guthaben: {available_usdt}")
+                    break
+        else:
+            logs.append("Fehler beim Abrufen der Balance.")
+    except Exception as e:
+        logs.append(f"Fehler bei Balance-Abfrage: {e}")
+        available_usdt = None
+
     # 1. Hebel setzen (neu)
     try:
         logs.append(f"Setze Hebel auf {leverage} für {symbol} ({position_side})...")
@@ -420,7 +427,7 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
-        "available_balances": available_usdt,
+        "usdt_balance_before_order": available_usdt,
         "logs": logs
     })
 
