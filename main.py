@@ -425,6 +425,7 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
+        "usdt_balance_before_order": available_usdt,
         "logs": logs
     })
 
