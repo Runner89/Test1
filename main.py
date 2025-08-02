@@ -365,7 +365,7 @@ def webhook():
     if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger:
         try:
             anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-            nachricht = f"🔔 Alarmstufe {alarm_trigger} erreicht für {base_asset}.\nNachkäufe: {anzahl_nachkäufe}"
+            nachricht = f"{base_asset}:\nNachkäufe: {anzahl_nachkäufe}"
             telegram_result = sende_telegram_nachricht(nachricht)
             logs.append(f"Telegram gesendet: {telegram_result}")
 
