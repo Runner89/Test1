@@ -1,3 +1,24 @@
+#Market Order mit Hebel wird gesetzt
+#Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
+#Durschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
+#Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
+
+###### Funktioniert nur, wenn alle Order die gleiche Grösse haben (Durchschnittspreis stimmt sonst nicht in Firebase) #####
+
+#https://mexc-trading-bot-yrn9.onrender.com/webhook
+#{
+#  "api_key": "AgKYtJTXgLDM7ZsiwaIUoJSUyrVXLjqkmFzLTfmCsau00nW1A6RQWddZQOOeAOzmcpDQ9zowa0BT8dG6BQ",
+#  "secret_key": "YyxO6LVeivvtYIzcIe9c8XWbedyzBWqIYgZdv8suYWWEAxVygafnsRYBqzImu0WMiZ4bxmxuih6Sf56Pn8bwQ",
+#  "symbol": "PENGU-USDT",
+#  "usdt_amount": 2.2,
+#  "position_side": "LONG",
+#  "sell_percentage": 1.5,
+#  "price": 0.068186,
+#  "leverage": 2,
+#  "FIREBASE_SECRET": "YRvXpXUCabqJDRRpaD5uvPleWSLtGj1WgPCIyE9i",
+#  "alarm": 1
+#}
+
 from flask import Flask, request, jsonify
 import time
 import hmac
@@ -153,6 +174,15 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
+
+def get_futures_balance(api_key: str, secret_key: str):
+    timestamp = int(time.time() * 1000)
+    params = f"timestamp={timestamp}"
+    signature = generate_signature(secret_key, params)
+    url = f"{BASE_URL}{BALANCE_ENDPOINT}?{params}&signature={signature}"
+    headers = {"X-BX-APIKEY": api_key}
+    response = requests.get(url, headers=headers)
+    return response.json()
     
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -260,6 +290,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
+    balance_response = get_futures_balance(api_key, secret_key)
 
     if not api_key or not secret_key or not usdt_amount:
         return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
@@ -376,25 +407,6 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-    # 10. Verfügbares USDT-Guthaben abrufen
-        try:
-            balance_response = get_futures_balance(api_key, secret_key)
-            logs.append(f"Balance Response: {balance_response}")
-    
-            available_usdt = None
-            if balance_response.get("code") == 0:
-                balances = balance_response.get("data", [])
-                for asset in balances:
-                    if asset.get("currency") == "USDT":
-                        available_usdt = float(asset.get("availableBalance", 0))
-                        break
-            else:
-                logs.append("Fehler beim Abrufen des Guthabens")
-
-        except Exception as e:
-            available_usdt = None
-            logs.append(f"Fehler bei Balance-Abfrage: {e}")
-
     return jsonify({
         "error": False,
         "order_result": order_response,
@@ -406,7 +418,7 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
-        "available_usdt": available_usdt,
+        "available_balances": balance_response.get("data", {}).get("balance", {}),
         "logs": logs
     })
 
