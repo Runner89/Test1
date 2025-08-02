@@ -305,6 +305,7 @@ def webhook():
     logs = []
 
     # Eingabewerte
+    beenden = str(data.get("beenden", "")).lower()
     pyramiding = float(data.get("pyramiding", 1))
     sicherheit = float(data.get("sicherheit", 0))
     sell_percentage = data.get("sell_percentage")
@@ -314,8 +315,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    beenden = str(data.get("beenden", "")).lower()
-
+    
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
 
