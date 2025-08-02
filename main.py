@@ -140,7 +140,7 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
         "positionSide": position_side,
         "timestamp": timestamp
     }
-    
+
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
     signature = generate_signature(secret_key, query_string)
     params_dict["signature"] = signature
@@ -153,7 +153,7 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
-
+    
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return "Telegram nicht konfiguriert"
