@@ -308,7 +308,7 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
 
-    if not api_key or not secret_key or not usdt_amount:
+    if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key and secret_key are required"}), 400
 
     # 0. USDT-Guthaben vor Order abrufen
