@@ -412,20 +412,20 @@ def webhook():
         if limit_order_response.get("code") != 0:
             logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
 
-    return jsonify({
-        "error": False,
-        "order_result": order_response,
-        "limit_order_result": limit_order_response,
-        "symbol": symbol,
-        "usdt_amount": usdt_amount,
-        "sell_quantity": sell_quantity,
-        "price_from_webhook": price_from_webhook,
-        "sell_percentage": sell_percentage,
-        "firebase_average_price": durchschnittspreis,
-        "firebase_all_prices": kaufpreise,
-        "usdt_balance_before_order": available_usdt,
-        "logs": logs
-    })
+        return jsonify({
+            "error": False,
+            "order_result": order_response,
+            "limit_order_result": limit_order_response,
+            "symbol": symbol,
+            "usdt_amount": usdt_amount,
+            "sell_quantity": sell_quantity,
+            "price_from_webhook": price_from_webhook,
+            "sell_percentage": sell_percentage,
+            "firebase_average_price": durchschnittspreis,
+            "firebase_all_prices": kaufpreise,
+            "usdt_balance_before_order": available_usdt,
+            "logs": logs
+        })
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
