@@ -349,12 +349,16 @@ def webhook():
     alarm_trigger = int(data.get("alarm", 0))  # Alarm-Level vom Webhook
     anzahl_käufe = len(kaufpreise or [])
 
-    if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger:
+    if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger and anzahl_käufe > letzter_alarmwert:
         try:
-            base_asset = symbol.split("-")[0]
-            nachricht = f"🔔 Alarmstufe {alarm_trigger} erreicht für {base_asset}.\nNachkäufe: {anzahl_käufe}"
+            anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
+            nachricht = f"🔔 Nachkäufe {anzahl_nachkäufe} erreicht für {base_asset}."
             telegram_result = sende_telegram_nachricht(nachricht)
             logs.append(f"Telegram gesendet: {telegram_result}")
+
+            if firebase_secret:
+                firebase_speichere_alarmwert(base_asset, anzahl_käufe, firebase_secret)
+                logs.append(f"Neuer Alarmwert in Firebase gespeichert: {anzahl_käufe}")
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
