@@ -391,9 +391,9 @@ def webhook():
             else:
                 logs.append("Fehler beim Abrufen des Guthabens")
 
-except Exception as e:
-    available_usdt = None
-    logs.append(f"Fehler bei Balance-Abfrage: {e}")
+        except Exception as e:
+            available_usdt = None
+            logs.append(f"Fehler bei Balance-Abfrage: {e}")
 
     return jsonify({
         "error": False,
