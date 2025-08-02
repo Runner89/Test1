@@ -140,6 +140,19 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
         "positionSide": position_side,
         "timestamp": timestamp
     }
+    
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
 
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -352,7 +365,7 @@ def webhook():
     if alarm_trigger > 0 and anzahl_käufe >= alarm_trigger:
         try:
             anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-            nachricht = f"🔔 Alarmstufe {alarm_trigger} erreicht für {base_asset}.\nNachkäufe: {anzahl_käufe}"
+            nachricht = f"🔔 Alarmstufe {alarm_trigger} erreicht für {base_asset}.\nNachkäufe: {anzahl_nachkäufe}"
             telegram_result = sende_telegram_nachricht(nachricht)
             logs.append(f"Telegram gesendet: {telegram_result}")
 
