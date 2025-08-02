@@ -292,12 +292,9 @@ def webhook():
         logs.append(f"Balance Response: {balance_response}")
         available_usdt = 0.0
         if balance_response.get("code") == 0:
-            balances = balance_response.get("data", [])
-            for item in balances:
-                if item.get("asset") == "USDT":
-                    available_usdt = float(item.get("availableBalance", 0))
-                    logs.append(f"Freies USDT Guthaben: {available_usdt}")
-                    break
+            balance_data = balance_response.get("data", {}).get("balance", {})
+            available_usdt = float(balance_data.get("availableMargin", 0))
+            logs.append(f"Freies USDT Guthaben: {available_usdt}")
         else:
             logs.append("Fehler beim Abrufen der Balance.")
     except Exception as e:
