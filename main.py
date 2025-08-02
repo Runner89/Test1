@@ -288,11 +288,15 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    available_usdt = get_available_usdt(balance_response)
+
 
     if not api_key or not secret_key or not usdt_amount:
         return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
 
+    balance_response = get_futures_balance(api_key, secret_key)
+    available_usdt = get_available_usdt(balance_response)
+    logs.append(f"Verfügbares USDT: {available_usdt}")
+    
     # 1. Hebel setzen (neu)
     try:
         logs.append(f"Setze Hebel auf {leverage} für {symbol} ({position_side})...")
