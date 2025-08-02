@@ -175,14 +175,12 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
 
-def get_futures_balance(api_key: str, secret_key: str):
-    timestamp = int(time.time() * 1000)
-    params = f"timestamp={timestamp}"
-    signature = generate_signature(secret_key, params)
-    url = f"{BASE_URL}{BALANCE_ENDPOINT}?{params}&signature={signature}"
-    headers = {"X-BX-APIKEY": api_key}
-    response = requests.get(url, headers=headers)
-    return response.json()
+def get_available_usdt(balance_response):
+    balances = balance_response.get("data", {}).get("balance", [])
+    for asset_info in balances:
+        if asset_info.get("asset") == "USDT":
+            return float(asset_info.get("available", 0))
+    return 0.0
     
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -290,7 +288,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    balance_response = get_futures_balance(api_key, secret_key)
+    available_usdt = get_available_usdt(balance_response)
 
     if not api_key or not secret_key or not usdt_amount:
         return jsonify({"error": True, "msg": "api_key, secret_key and usdt_amount are required"}), 400
@@ -418,7 +416,7 @@ def webhook():
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
-        "available_balances": balance_response.get("data", {}).get("balance", {}),
+        "available_balances": available_usdt,
         "logs": logs
     })
 
