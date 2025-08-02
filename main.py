@@ -8,15 +8,15 @@
 
 #https://mexc-trading-bot-yrn9.onrender.com/webhook
 #{
-#  "api_key": "AgKYtJTXgLDM7ZsiwaIUoJSUyrVXLjqkmFzLTfmCsau00nW1A6RQWddZQOOeAOzmcpDQ9zowa0BT8dG6BQ",
-#  "secret_key": "YyxO6LVeivvtYIzcIe9c8XWbedyzBWqIYgZdv8suYWWEAxVygafnsRYBqzImu0WMiZ4bxmxuih6Sf56Pn8bwQ",
+#  "api_key": "",
+#  "secret_key": "",
 #  "symbol": "PENGU-USDT",
 #  "usdt_amount": 2.2,
 #  "position_side": "LONG",
 #  "sell_percentage": 1.5,
 #  "price": 0.068186,
 #  "leverage": 2,
-#  "FIREBASE_SECRET": "YRvXpXUCabqJDRRpaD5uvPleWSLtGj1WgPCIyE9i",
+#  "FIREBASE_SECRET": "",
 #  "alarm": 1
 #}
 
