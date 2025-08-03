@@ -178,6 +178,15 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
+
+def firebase_speichere_alarmwert(asset, wert, firebase_secret):
+    url = f"{FIREBASE_URL}/alarmwerte/{asset}.json?auth={firebase_secret}"
+    data = {"alarmwert": wert}
+    response = requests.put(url, json=data)
+    if response.status_code == 200:
+        return f"Alarmwert für {asset} gespeichert: {wert}"
+    else:
+        return f"Fehler beim Speichern des Alarmwerts für {asset}: {response.status_code} - {response.text}"
     
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
