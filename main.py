@@ -289,27 +289,34 @@ def firebase_lese_kaufpreise(asset, firebase_secret, firebase_url, logs=None):
         logs.append(f"[Firebase GET] URL: {url}")
     
     response = requests.get(url)
+    
+    if logs is not None:
+        logs.append(f"[Firebase Status Code] {response.status_code}")
+    
     if response.status_code != 200:
         if logs is not None:
-            logs.append(f"[Firebase Error] Status: {response.status_code}")
+            logs.append(f"[Firebase Error] Status: {response.status_code}, Response: {response.text}")
         return None
 
     try:
         data = response.json()
         if logs is not None:
-            logs.append(f"[Firebase Data] Raw: {data}")
+            logs.append(f"[Firebase Raw JSON] {data}")
     except Exception as e:
         if logs is not None:
-            logs.append(f"[Firebase JSON Error] {str(e)}")
+            logs.append(f"[Firebase JSON Parsing Error] {str(e)}")
         return None
 
     if not data:
+        if logs is not None:
+            logs.append("[Firebase Info] Keine Kaufpreise vorhanden.")
         return []
 
-    preise = [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
+    kaufpreise = [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
     if logs is not None:
-        logs.append(f"[Firebase Parsed Kaufpreise] {preise}")
-    return preise
+        logs.append(f"[Firebase Parsed Kaufpreise] {kaufpreise}")
+    return kaufpreise
+
     
 
 def berechne_durchschnittspreis(preise):
@@ -387,7 +394,7 @@ def webhook():
     durchschnittspreis = None
     try:
         if firebase_secret:
-            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret, firebase_url, log) or []
+            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret, firebase_url) or []
             durchschnittspreis = berechne_durchschnittspreis(kaufpreise)
             logs.append(f"Firebase Kaufpreise: {kaufpreise}")
             logs.append(f"Berechneter Durchschnittspreis: {durchschnittspreis}")
