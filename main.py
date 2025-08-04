@@ -126,8 +126,6 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
     positions = response.get("data", [])
     raw_positions = positions if isinstance(positions, list) else []
 
-    liquidation_price = None
-
     if logs is not None:
         logs.append(f"Positions Rohdaten: {raw_positions}")
 
@@ -138,46 +136,22 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
                 if logs is not None:
                     logs.append(f"Gefundene Position: {pos}")
                 try:
-                    position_size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
-                    liquidation_price = float(pos.get("liquidationPrice", 0)) if pos.get("liquidationPrice") else None
+                    position_size = float(pos.get("size", 0))
+                    if position_size == 0:
+                        position_size = float(pos.get("positionAmt", 0))
                     if logs is not None:
-                        logs.append(f"Position size: {position_size}, Liquidationspreis: {liquidation_price}")
-                except Exception as e:
+                        logs.append(f"Position size ermittelt: {position_size}")
+                except (ValueError, TypeError) as e:
+                    position_size = 0
                     if logs is not None:
-                        logs.append(f"Fehler beim Parsen der Positionsdaten: {e}")
+                        logs.append(f"Fehler beim Parsen der Positionsgröße: {e}")
                 break
     else:
         if logs is not None:
             logs.append(f"API Antwort Fehlercode: {response.get('code')}")
 
-    return position_size, liquidation_price, raw_positions
+    return position_size, raw_positions
 
-def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, position_side="LONG"):
-    timestamp = int(time.time() * 1000)
-
-    params_dict = {
-        "symbol": symbol,
-        "side": "SELL",
-        "type": "STOP_MARKET",  # Oder STOP_LIMIT falls unterstützt
-        "quantity": round(quantity, 6),
-        "stopPrice": round(stop_price, 6),
-        "positionSide": position_side,
-        "timestamp": timestamp
-    }
-
-    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
-    params_dict["signature"] = signature
-
-    url = f"{BASE_URL}{ORDER_ENDPOINT}"
-    headers = {
-        "X-BX-APIKEY": api_key,
-        "Content-Type": "application/json"
-    }
-
-    response = requests.post(url, headers=headers, json=params_dict)
-    return response.json()
-    
 def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, position_side="LONG"):
     timestamp = int(time.time() * 1000)
 
@@ -471,22 +445,6 @@ def webhook():
             logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
     except Exception as e:
         logs.append(f"Fehler bei Limit-Order: {e}")
-
-     # Position abfragen
-    size, liquidation_price = get_current_position(symbol, position_side)
-    logs.append(f"Position size: {size}, Liquidationspreis: {liquidation_price}")
-
-    if not liquidation_price or size == 0:
-        logs.append("Keine Position oder Liquidationspreis gefunden. Kein Stop-Loss gesetzt.")
-        return jsonify({"status": "no position or liquidation price", "logs": logs})
-
-    # Stop-Loss 1% über Liquidationspreis
-    stop_loss_price = round(liquidation_price * 1.01, 6)
-    logs.append(f"Stop-Loss Preis (1% über Liquidation): {stop_loss_price}")
-
-    # Stop-Loss Order setzen
-    order_response = place_stop_loss_order(symbol, size, stop_loss_price, position_side)
-    logs.append(f"Stop-Loss Order Antwort: {order_response}")
 
     # 11. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))
