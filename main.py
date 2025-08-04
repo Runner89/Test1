@@ -349,6 +349,9 @@ def webhook():
         firebase_url = os.environ.get("FIREBASE_URL_vyn", "")
     else:
         firebase_url = os.environ.get("FIREBASE_URL", "")
+
+    # ⬇️ URL in die Logs einfügen
+    logs.append(f"Verwendete Firebase-URL: {firebase_url}")
         
     position_data = data.get('positionData', {})
 
