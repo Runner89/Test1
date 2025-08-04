@@ -282,15 +282,35 @@ def firebase_loesche_kaufpreise(asset, firebase_secret, firebase_url):
     else:
         return f"Fehler beim Löschen der Kaufpreise für {asset}: Status {response.status_code}"
 
-def firebase_lese_kaufpreise(asset, firebase_secret, firebase_url):
+def firebase_lese_kaufpreise(asset, firebase_secret, firebase_url, logs=None):
     url = f"{firebase_url}/kaufpreise/{asset}.json?auth={firebase_secret}"
+    
+    if logs is not None:
+        logs.append(f"[Firebase GET] URL: {url}")
+    
     response = requests.get(url)
     if response.status_code != 200:
+        if logs is not None:
+            logs.append(f"[Firebase Error] Status: {response.status_code}")
         return None
-    data = response.json()
+
+    try:
+        data = response.json()
+        if logs is not None:
+            logs.append(f"[Firebase Data] Raw: {data}")
+    except Exception as e:
+        if logs is not None:
+            logs.append(f"[Firebase JSON Error] {str(e)}")
+        return None
+
     if not data:
         return []
-    return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
+
+    preise = [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
+    if logs is not None:
+        logs.append(f"[Firebase Parsed Kaufpreise] {preise}")
+    return preise
+    
 
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
