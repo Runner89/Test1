@@ -20,8 +20,7 @@
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
 #    "pyramiding": 8,
-#    "sicherheit": 96,
-#    "vyn": "ja"   wird bei vyn ja angegeben, wird die andere Firebase-url genommen
+#    "sicherheit": 96
 #}
 
 from flask import Flask, request, jsonify
@@ -38,7 +37,7 @@ BALANCE_ENDPOINT = "/openApi/swap/v2/user/balance"
 ORDER_ENDPOINT = "/openApi/swap/v2/trade/order"
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 OPEN_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/openOrders"
-
+FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -127,31 +126,23 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
     positions = response.get("data", [])
     raw_positions = positions if isinstance(positions, list) else []
 
+    liquidation_price = None
+
     if logs is not None:
         logs.append(f"Positions Rohdaten: {raw_positions}")
 
     position_size = 0
-    position_value = 0  # neu
-
     if response.get("code") == 0:
         for pos in positions:
             if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                 if logs is not None:
                     logs.append(f"Gefundene Position: {pos}")
                 try:
-                    position_size = float(pos.get("size", 0))
-                    if position_size == 0:
-                        position_size = float(pos.get("positionAmt", 0))
-
-                    position_value_str = pos.get("positionValue", "0")
-                    position_value = float(position_value_str)
-                    
+                    position_size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
+                    liquidation_price = float(pos.get("liquidationPrice", 0)) if pos.get("liquidationPrice") else None
                     if logs is not None:
-                        logs.append(f"Position size (Coin): {position_size}")
-                        logs.append(f"Position value (USDT): {position_value}")
-                except (ValueError, TypeError) as e:
-                    position_size = 0
-                    position_value = 0
+                        logs.append(f"Position size: {position_size}, Liquidationspreis: {liquidation_price}")
+                except Exception as e:
                     if logs is not None:
                         logs.append(f"Fehler beim Parsen der Positionsdaten: {e}")
                 break
@@ -159,10 +150,34 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
         if logs is not None:
             logs.append(f"API Antwort Fehlercode: {response.get('code')}")
 
-    return position_size, position_value, raw_positions
+    return position_size, liquidation_price, raw_positions
 
+def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, position_side="LONG"):
+    timestamp = int(time.time() * 1000)
 
+    params_dict = {
+        "symbol": symbol,
+        "side": "SELL",
+        "type": "STOP_MARKET",  # Oder STOP_LIMIT falls unterstützt
+        "quantity": round(quantity, 6),
+        "stopPrice": round(stop_price, 6),
+        "positionSide": position_side,
+        "timestamp": timestamp
+    }
 
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
+    
 def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, position_side="LONG"):
     timestamp = int(time.time() * 1000)
 
@@ -238,14 +253,14 @@ def cancel_order(api_key, secret_key, symbol, order_id):
     response = requests.delete(url, headers=headers)
     return response.json()
 
-def firebase_speichere_ordergroesse(asset, betrag, firebase_secret, firebase_url):
-    url = f"{firebase_url}/ordergroesse/{asset}.json?auth={firebase_secret}"
+def firebase_speichere_ordergroesse(asset, betrag, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     data = {"usdt_amount": betrag}
     response = requests.put(url, json=data)
     return f"Ordergröße für {asset} gespeichert: {betrag}, Status: {response.status_code}"
 
-def firebase_lese_ordergroesse(asset, firebase_secret, firebase_url):
-    url = f"{firebase_url}/ordergroesse/{asset}.json?auth={firebase_secret}"
+def firebase_lese_ordergroesse(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
     
     if response.status_code != 200:
@@ -263,61 +278,34 @@ def firebase_lese_ordergroesse(asset, firebase_secret, firebase_url):
     return None
 
 
-def firebase_loesche_ordergroesse(asset, firebase_secret, firebase_url):
-    url = f"{firebase_url}/ordergroesse/{asset}.json?auth={firebase_secret}"
+def firebase_loesche_ordergroesse(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     response = requests.delete(url)
     return f"Ordergröße für {asset} gelöscht, Status: {response.status_code}"
 
-def firebase_speichere_kaufpreis(asset, price, firebase_secret, firebase_url):
-    url = f"{firebase_url}/kaufpreise/{asset}.json?auth={firebase_secret}"
+def firebase_speichere_kaufpreis(asset, price, firebase_secret):
+    url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
     data = {"price": price}
     response = requests.post(url, json=data)
     return f"Kaufpreis gespeichert für {asset}: {price}, Status: {response.status_code}"
 
-def firebase_loesche_kaufpreise(asset, firebase_secret, firebase_url):
-    url = f"{firebase_url}/kaufpreise/{asset}.json?auth={firebase_secret}"
+def firebase_loesche_kaufpreise(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
     response = requests.delete(url)
     if response.status_code == 200:
         return f"Kaufpreise für {asset} gelöscht."
     else:
         return f"Fehler beim Löschen der Kaufpreise für {asset}: Status {response.status_code}"
 
-def firebase_lese_kaufpreise(asset, firebase_secret, firebase_url, logs=None):
-    url = f"{firebase_url}/kaufpreise/{asset}.json?auth={firebase_secret}"
-    
-    if logs is not None:
-        logs.append(f"[Firebase GET] URL: {url}")
-    
+def firebase_lese_kaufpreise(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
-    
-    if logs is not None:
-        logs.append(f"[Firebase Status Code] {response.status_code}")
-    
     if response.status_code != 200:
-        if logs is not None:
-            logs.append(f"[Firebase Error] Status: {response.status_code}, Response: {response.text}")
         return None
-
-    try:
-        data = response.json()
-        if logs is not None:
-            logs.append(f"[Firebase Raw JSON] {data}")
-    except Exception as e:
-        if logs is not None:
-            logs.append(f"[Firebase JSON Parsing Error] {str(e)}")
-        return None
-
+    data = response.json()
     if not data:
-        if logs is not None:
-            logs.append("[Firebase Info] Keine Kaufpreise vorhanden.")
         return []
-
-    kaufpreise = [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
-    if logs is not None:
-        logs.append(f"[Firebase Parsed Kaufpreise] {kaufpreise}")
-    return kaufpreise
-
-    
+    return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
@@ -342,106 +330,195 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # Assuming you receive JSON data with a 'positionData' field
     data = request.json
-    vyn = data.get("vyn", "nein").lower()
     logs = []
-    if vyn == "ja":
-        firebase_url = os.environ.get("FIREBASE_URL_vyn", "")
-    else:
-        firebase_url = os.environ.get("FIREBASE_URL", "")
 
-    # ⬇️ URL in die Logs einfügen
-    logs.append(f"Verwendete Firebase-URL: {firebase_url}")
-        
-    position_data = data.get('positionData', {})
-
-    # Now use position_data safely
-    position_value = float(position_data.get('positionValue', 0))
-
-
-
+    # Eingabewerte
+    pyramiding = float(data.get("pyramiding", 1))
+    sicherheit = float(data.get("sicherheit", 0))
+    sell_percentage = data.get("sell_percentage")
     api_key = data.get("api_key")
     secret_key = data.get("secret_key")
     symbol = data.get("symbol", "BTC-USDT")
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
-
-    
+    price_from_webhook = data.get("price")
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
 
     base_asset = symbol.split("-")[0]
+    available_usdt = 0.0
 
-    # 1. Positionsgröße und Positionswert ermitteln
-    sell_quantity = 0
-    position_value = 0
+    # 0. USDT-Guthaben vor Order abrufen
     try:
-        sell_quantity, position_value, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"Balance Response: {balance_response}")
+        if balance_response.get("code") == 0:
+            balance_data = balance_response.get("data", {}).get("balance", {})
+            available_usdt = float(balance_data.get("availableMargin", 0))
+            logs.append(f"Freies USDT Guthaben: {available_usdt}")
+        else:
+            logs.append("Fehler beim Abrufen der Balance.")
     except Exception as e:
-        logs.append(f"Fehler bei Positionsabfrage: {e}")
+        logs.append(f"Fehler bei Balance-Abfrage: {e}")
+        available_usdt = None
 
-    position_in_usdt = round(position_value, 2)
-    logs.append(f"Positionsgröße in USDT: {position_in_usdt}")
-
-    # 2. Aktuellen Preis abfragen
-    current_price = None
+    # 1. Hebel setzen
     try:
-        current_price = get_current_price(symbol)
-        logs.append(f"Aktueller Preis: {current_price}")
+        logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
+        leverage_response = set_leverage(api_key, secret_key, symbol, pyramiding, position_side)
+        logs.append(f"Hebel gesetzt: {leverage_response}")
     except Exception as e:
-        logs.append(f"Fehler beim Abrufen des aktuellen Preises: {e}")
+        logs.append(f"Fehler beim Setzen des Hebels: {e}")
 
-    # 3. Kaufpreise aus Firebase lesen
-    kaufpreise = []
-    durchschnittspreis = None
-    try:
-        if firebase_secret:
-            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret, firebase_url) or []
-            durchschnittspreis = berechne_durchschnittspreis(kaufpreise)
-            logs.append(f"Firebase Kaufpreise: {kaufpreise}")
-            logs.append(f"Berechneter Durchschnittspreis: {durchschnittspreis}")
-    except Exception as e:
-        logs.append(f"Fehler beim Lesen/Berechnen der Kaufpreise: {e}")
-
-    # 4. Positionsgröße in USDT berechnen (Menge * Durchschnittspreis)
-    position_value = float(position_data.get('positionValue', 0))
-    
-    position_in_usdt = None
-    position_in_usdt = round(position_value, 2)
-    logs.append(f"Positionsgröße in USDT: {position_in_usdt}")
-
-    # 5. Sell-Limit-Order Position (Preis) ermitteln
-    limit_order_price = None
+    # 2. Offene Orders abrufen
+    open_orders = {}
     try:
         open_orders = get_open_orders(api_key, secret_key, symbol)
+        logs.append(f"Open Orders: {open_orders}")
+    except Exception as e:
+        logs.append(f"Fehler bei Orderprüfung: {e}")
+
+    # 3. Ordergröße ermitteln (Compounding-Logik)
+    usdt_amount = 0
+    if firebase_secret:
+        try:
+            open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
+
+            if open_sell_orders_exist:
+                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
+                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
+            else:
+                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
+                if available_usdt is not None and pyramiding > 0:
+                    usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
+                    logs.append(f"Neue Ordergröße berechnet: (Balance {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding} = {usdt_amount}")
+                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
+
+    # 4. Market-Order ausführen
+    logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
+    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+    time.sleep(2)
+    logs.append(f"Market-Order Antwort: {order_response}")
+
+    # 5. Positionsgröße ermitteln
+    try:
+        sell_quantity, positions_raw = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        if sell_quantity == 0:
+            executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
+            if executed_qty_str:
+                sell_quantity = float(executed_qty_str)
+                logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
+    except Exception as e:
+        sell_quantity = 0
+        logs.append(f"Fehler bei Positionsabfrage: {e}")
+
+    # 6. Kaufpreise ggf. löschen
+    if firebase_secret and not open_sell_orders_exist:
+        try:
+            logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
+
+    # 7. Kaufpreis speichern
+    if firebase_secret and price_from_webhook:
+        try:
+            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+
+    # 8. Durchschnitt berechnen
+    durchschnittspreis = None
+    kaufpreise = []
+    if firebase_secret:
+        try:
+            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
+            durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
+            logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+        except Exception as e:
+            logs.append(f"Fehler bei Durchschnittsberechnung: {e}")
+
+    # 9. Alte Sell-Limit-Orders löschen
+    try:
         if isinstance(open_orders, dict) and open_orders.get("code") == 0:
             for order in open_orders.get("data", {}).get("orders", []):
                 if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                    limit_order_price = float(order.get("price"))
-                    logs.append(f"Gefundene Sell-Limit-Order zum Preis: {limit_order_price}")
-                    break
+                    cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
+                    logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
     except Exception as e:
-        logs.append(f"Fehler beim Abrufen der offenen Sell-Limit-Orders: {e}")
+        logs.append(f"Fehler beim Löschen der Sell-Limit-Orders: {e}")
 
-    # 6. Gewinn/Verlust in Prozent berechnen
-    profit_loss_percent = None
-    if current_price and durchschnittspreis:
+    # 10. Neue Limit-Order setzen
+    limit_order_response = None
+    try:
+        if durchschnittspreis and sell_percentage:
+            limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
+        else:
+            limit_price = 0
+
+        if sell_quantity > 0 and limit_price > 0:
+            limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
+            logs.append(f"Limit-Order gesetzt (auf Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
+        else:
+            logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
+    except Exception as e:
+        logs.append(f"Fehler bei Limit-Order: {e}")
+
+     # Position abfragen
+    size, liquidation_price = get_current_position(symbol, position_side)
+    logs.append(f"Position size: {size}, Liquidationspreis: {liquidation_price}")
+
+    if not liquidation_price or size == 0:
+        logs.append("Keine Position oder Liquidationspreis gefunden. Kein Stop-Loss gesetzt.")
+        return jsonify({"status": "no position or liquidation price", "logs": logs})
+
+    # Stop-Loss 1% über Liquidationspreis
+    stop_loss_price = round(liquidation_price * 1.01, 6)
+    logs.append(f"Stop-Loss Preis (1% über Liquidation): {stop_loss_price}")
+
+    # Stop-Loss Order setzen
+    order_response = place_stop_loss_order(symbol, size, stop_loss_price, position_side)
+    logs.append(f"Stop-Loss Order Antwort: {order_response}")
+
+    # 11. Alarm senden
+    alarm_trigger = int(data.get("alarm", 0))
+    anzahl_käufe = len(kaufpreise or [])
+    anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
+
+    if anzahl_nachkäufe >= alarm_trigger:
         try:
-            profit_loss_percent = round((current_price - durchschnittspreis) / durchschnittspreis * 100, 4)
-            logs.append(f"Gewinn/Verlust in Prozent: {profit_loss_percent}%")
+            nachricht = f"{base_asset}:\nNachkäufe: {anzahl_nachkäufe}"
+            telegram_result = sende_telegram_nachricht(nachricht)
+            logs.append(f"Telegram gesendet: {telegram_result}")
+
+            if firebase_secret:
+                firebase_speichere_alarmwert(base_asset, anzahl_käufe, firebase_secret)
+                logs.append(f"Neuer Alarmwert in Firebase gespeichert: {anzahl_käufe}")
         except Exception as e:
-            logs.append(f"Fehler bei Gewinn/Verlust Berechnung: {e}")
+            logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
     return jsonify({
         "error": False,
-        "position_size_usdt": position_in_usdt,
-        "sell_limit_order_price": limit_order_price,
-        "profit_loss_percent": profit_loss_percent,
-        "firebase_kaufpreise": kaufpreise,
-        "firebase_durchschnittspreis": durchschnittspreis,
+        "order_result": order_response,
+        "limit_order_result": limit_order_response,
+        "symbol": symbol,
+        "usdt_amount": usdt_amount,
+        "sell_quantity": sell_quantity,
+        "price_from_webhook": price_from_webhook,
+        "sell_percentage": sell_percentage,
+        "firebase_average_price": durchschnittspreis,
+        "firebase_all_prices": kaufpreise,
+        "usdt_balance_before_order": available_usdt,
         "logs": logs
     })
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
