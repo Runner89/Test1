@@ -345,6 +345,7 @@ def webhook():
     # Assuming you receive JSON data with a 'positionData' field
     data = request.json
     vyn = data.get("vyn", "nein").lower()
+    logs = []
     if vyn == "ja":
         firebase_url = os.environ.get("FIREBASE_URL_vyn", "")
     else:
@@ -358,7 +359,7 @@ def webhook():
     # Now use position_data safely
     position_value = float(position_data.get('positionValue', 0))
 
-    logs = []
+
 
     api_key = data.get("api_key")
     secret_key = data.get("secret_key")
