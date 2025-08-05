@@ -349,8 +349,6 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    usdt_amount = 0
-    position_value_usdt = 0.0
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
@@ -388,37 +386,49 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Orderprüfung: {e}")
 
-    # 3.x. Vor dem Market-Kauf: Aktuelle Daten abrufen
+    # 3. Ordergröße ermitteln (angepasste Compounding-Logik)
+    usdt_amount = 0
+    position_value_usdt = 0.0
+    berechnet = 0  # vor dem try
     try:
+        # Positionen abfragen
         sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
-
-        # Position aktualisieren
-        position_value_usdt = 0.0
+        # Positionswert in USDT berechnen
         for pos in positions_raw:
             if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                 position_qty = float(pos.get("positionAmt", 0))
-                avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                position_value_usdt = abs(position_qty) * avg_price
-                logs.append(f"[Vor Kauf] Aktualisierter Positionswert (USDT): {position_value_usdt}")
+                if position_qty != 0:  # Nur wenn Position besteht
+                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                    position_value_usdt = abs(position_qty) * avg_price
+                    logs.append(f"Positionswert (USDT): {position_value_usdt}")
                 break
+                
 
+        open_sell_orders_exist = False
+        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+            for order in open_orders.get("data", {}).get("orders", []):
+                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                    open_sell_orders_exist = True
+                    break 
+        
         if available_usdt is not None and pyramiding > 0:
             berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
             usdt_amount = max(berechnet, 0)
-            logs.append(f"[Vor Kauf] Neue Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+            logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
 
     except Exception as e:
-        logs.append(f"[Fehler] Aktualisierung vor Market-Order fehlgeschlagen: {e}")
+        logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
 
     # 4. Market-Order ausführen
-    logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
-    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+    logs.append(f"Plaziere Market-Order mit {berechnet} USDT für {symbol} ({position_side})...")
+    order_response = place_market_order(api_key, secret_key, symbol, float(berechnet), position_side)
+
+    
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
     # 5. Positionsgröße und Liquidationspreis ermitteln
     try:
-        time.sleep(1)
         sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
 
         if sell_quantity == 0:
