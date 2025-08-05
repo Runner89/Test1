@@ -66,6 +66,46 @@ def get_current_price(symbol: str):
     else:
         return None
 
+def get_current_available_and_position(api_key, secret_key, symbol, position_side, logs):
+    available_usdt = 0.0
+    position_value_usdt = 0.0
+    liquidation_price = None
+
+def get_current_available_and_position(api_key, secret_key, symbol, position_side, logs):
+    available_usdt = 0.0
+    position_value_usdt = 0.0
+    liquidation_price = None
+    sell_quantity = 0
+
+    try:
+        # 1. USDT-Guthaben abrufen
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"[Balance] Response: {balance_response}")
+        if balance_response.get("code") == 0:
+            balance_data = balance_response.get("data", {}).get("balance", {})
+            available_usdt = float(balance_data.get("availableMargin", 0))
+            logs.append(f"[Balance] Freies USDT: {available_usdt}")
+        else:
+            logs.append("[Balance] Fehler beim Abrufen der Balance.")
+
+        # 2. Positionen abrufen
+        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+
+        # 3. Positionswert berechnen
+        for pos in positions_raw:
+            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                position_qty = float(pos.get("positionAmt", 0))
+                avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                position_value_usdt = abs(position_qty) * avg_price
+                logs.append(f"[Position] Positionswert (USDT): {position_value_usdt}")
+                break
+
+    except Exception as e:
+        logs.append(f"Fehler in get_current_available_and_position: {e}")
+
+    return sell_quantity, position_value_usdt, available_usdt, liquidation_price
+
+
 def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG"):
     price = get_current_price(symbol)
     if price is None:
@@ -409,19 +449,23 @@ def webhook():
                     open_sell_orders_exist = True
                     break
 
+        # Vor jeder Kauforder:
+        available_usdt, position_value_usdt = get_current_available_and_position(api_key, secret_key, symbol, position_side, logs)
 
-        # Ordergröße berechnen (ohne Firebase)
-        if available_usdt is not None and pyramiding > 0:
+        # Ordergröße berechnen
+        if pyramiding > 0:
             berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
             usdt_amount = max(berechnet, 0)
-            logs.append(f"Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+            logs.append(f"Ordergröße berechnet: {usdt_amount}")
+        else:
+            usdt_amount = 0
 
     except Exception as e:
         logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
-    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side=position_side)
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
