@@ -4,11 +4,13 @@
 #Durschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
 #Verfügbares Guthaben wird ermittelt
-#Ordergröss = (Verfügbares Guthaben - Sicherheit)/Pyramiding
+#Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
+#StopLoss 2% über Liquidationspreis
+#Falls Firebaseverbindung fehlschlägt, wird der Durschnittspreis aus Bingx -0.02% für die Berechnung der Sell-Limit-Order verwendet.
 
 ###### Funktioniert nur, wenn alle Order die gleiche Grösse haben (Durchschnittspreis stimmt sonst nicht in Firebase) #####
 
-#https://test1-0zfh.onrender.com/webhook
+#https://......../webhook
 #{
 #    "api_key": "",
 #    "secret_key": "",
@@ -427,6 +429,20 @@ def webhook():
         else:
             stop_loss_price = None
             logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
+
+       bereits_investierter_betrag = None
+        try:
+            for pos in positions_raw:
+                if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                    size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
+                    if avg_price > 0 and size > 0:
+                        bereits_investierter_betrag = round(avg_price * size, 2)
+                        logs.append(f"[Investiert] avgPrice: {avg_price}, Size: {size}, Investiert: {bereits_investierter_betrag} USD")
+                    break
+        except Exception as e:
+            logs.append(f"Fehler bei der Berechnung des investierten Betrags: {e}")
+            
     except Exception as e:
         sell_quantity = 0
         stop_loss_price = None
@@ -555,6 +571,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
+        "used_usd_amount": bereits_investierter_betrag,
         "logs": logs
     })
 
