@@ -357,8 +357,7 @@ def webhook():
     price_from_webhook = data.get("price")
     
     
-    position_value_before_order = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
-
+    
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
@@ -380,7 +379,9 @@ def webhook():
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
-     
+    position_vor_Order = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
+    verfuegbares_Guthaben_vor_Order = available_usdt
+    Ergebnis = (position_vor_Order + verfuegbares_Guthaben_vor_Order - sicherheit) / pyramiding
 
     # 1. Hebel setzen
     try:
@@ -575,7 +576,9 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "position_value_before_order": position_value_before_order,
+        "AA_Position vor Order": position_value_before_order,
+        "AA_verfügbares Guthaben vor Order": verfuegbares_Guthaben_vor_Order,
+        "AA_Ergebnis": Ergebnis,
         "logs": logs
     })
 
