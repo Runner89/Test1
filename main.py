@@ -552,6 +552,10 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
+
+
+    trades = []
+
     trades_response = get_trade_history(api_key, secret_key, "BABY-USDT", "LONG", limit=5)
     if trades_response.get("code") == 0:
         trades = trades_response.get("data", [])
