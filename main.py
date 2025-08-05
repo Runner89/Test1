@@ -430,7 +430,8 @@ def webhook():
             stop_loss_price = None
             logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
 
-       bereits_investierter_betrag = None
+        # ✅ Investierten Betrag berechnen
+        bereits_investierter_betrag = None
         try:
             for pos in positions_raw:
                 if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
@@ -442,10 +443,11 @@ def webhook():
                     break
         except Exception as e:
             logs.append(f"Fehler bei der Berechnung des investierten Betrags: {e}")
-            
+
     except Exception as e:
         sell_quantity = 0
         stop_loss_price = None
+        bereits_investierter_betrag = None
         logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
 
     # 6. Kaufpreise ggf. löschen
