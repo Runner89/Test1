@@ -418,9 +418,9 @@ def webhook():
         
         open_sell_orders_exist = False
 
-        berechnet = (position_vor_Order + available_usdt - sicherheit) / pyramiding
+        berechnet = (verfuegbares_Guthaben_vor_Order - sicherheit) / pyramiding
         usdt_amount = max(berechnet, 0)
-        logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+        logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_vor_Order} + Guthaben {verfuegbares_Guthaben_vor_Order} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
 
     except Exception as e:
         logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
