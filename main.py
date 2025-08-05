@@ -311,9 +311,48 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
+def get_user_trades(api_key, secret_key, symbol, limit=100):
+    base_url = "https://open-api.bingx.com"
+    endpoint = "/openApi/swap/v2/trade/allFillOrders"
+    url = base_url + endpoint
+
+    timestamp = str(int(time.time() * 1000))
+    recv_window = "5000"
+
+    params = {
+        "symbol": symbol,
+        "timestamp": timestamp,
+        "recvWindow": recv_window,
+        "limit": limit
+    }
+
+    # Signatur vorbereiten (nach alphabetischer Sortierung der Parameter)
+    query_string = '&'.join([f"{key}={params[key]}" for key in sorted(params)])
+    signature = hmac.new(
+        secret_key.encode("utf-8"),
+        query_string.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    headers = {
+        "X-BX-APIKEY": api_key
+    }
+
+    full_url = f"{url}?{query_string}&signature={signature}"
+
+    response = requests.get(full_url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("code") == 0:
+            return data.get("data", [])
+        else:
+            raise Exception(f"BingX API Fehler: {data.get('msg')}")
+    else:
+        raise Exception(f"HTTP Fehler {response.status_code}: {response.text}")
+
 def get_last_buy_order(api_key, secret_key, symbol, position_side="LONG"):
     trades = get_user_trades(api_key, secret_key, symbol)
-    for trade in reversed(trades):  # neueste zuerst
+    for trade in reversed(trades):  # Neuste zuerst durchsuchen
         if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
             qty = float(trade.get("executedQty", 0))
             price = float(trade.get("price", 0))
