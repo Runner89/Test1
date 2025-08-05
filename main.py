@@ -161,6 +161,7 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
 
     position_size = 0
     liquidation_price = None
+    position_value = 0  # <== NEU
 
     if response.get("code") == 0:
         for pos in positions:
@@ -170,10 +171,13 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
                 try:
                     position_size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
                     liquidation_price = float(pos.get("liquidationPrice", 0))
+                    position_value = float(pos.get("positionValue", 0))  # <== NEU
                     if logs is not None:
                         logs.append(f"Position size: {position_size}, Liquidation price: {liquidation_price}")
+                        logs.append(f"Positionswert (USDT): {position_value}")  # <== NEU
                 except (ValueError, TypeError) as e:
                     position_size = 0
+                    position_value = 0
                     if logs is not None:
                         logs.append(f"Fehler beim Parsen: {e}")
                 break
@@ -181,7 +185,8 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
         if logs is not None:
             logs.append(f"API Antwort Fehlercode: {response.get('code')}")
 
-    return position_size, raw_positions, liquidation_price
+    return position_size, raw_positions, liquidation_price, position_value  # <== Rückgabe ergänzt
+
 
 def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, position_side="LONG"):
     timestamp = int(time.time() * 1000)
@@ -391,7 +396,7 @@ def webhook():
     position_value_usdt = 0.0
     try:
         # Positionen abfragen
-        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        sell_quantity, positions_raw, liquidation_price, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
         # Positionswert in USDT berechnen
         for pos in positions_raw:
             if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
@@ -439,7 +444,7 @@ def webhook():
 
     # 5. Positionsgröße und Liquidationspreis ermitteln
     try:
-        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        sell_quantity, positions_raw, liquidation_price, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
 
         if sell_quantity == 0:
             executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
@@ -567,6 +572,8 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
+    _, _, _, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
+    
     return jsonify({
         "error": False,
         "order_result": order_response,
@@ -581,6 +588,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
+        "AA_Position:": position_value,
         "logs": logs
     })
 
