@@ -93,6 +93,33 @@ def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
 
+def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, position_side="LONG"):
+    timestamp = int(time.time() * 1000)
+
+    params_dict = {
+        "symbol": symbol,
+        "side": "SELL",
+        "type": "STOP_MARKET",
+        "stopPrice": round(stop_price, 6),
+        "quantity": round(quantity, 6),
+        "positionSide": position_side,
+        "timestamp": timestamp,
+        "timeInForce": "GTC"
+    }
+
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
+
 def send_signed_request(http_method, endpoint, api_key, secret_key, params=None):
     if params is None:
         params = {}
@@ -130,27 +157,28 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
         logs.append(f"Positions Rohdaten: {raw_positions}")
 
     position_size = 0
+    liquidation_price = None
+
     if response.get("code") == 0:
         for pos in positions:
             if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                 if logs is not None:
                     logs.append(f"Gefundene Position: {pos}")
                 try:
-                    position_size = float(pos.get("size", 0))
-                    if position_size == 0:
-                        position_size = float(pos.get("positionAmt", 0))
+                    position_size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
+                    liquidation_price = float(pos.get("liquidationPrice", 0))
                     if logs is not None:
-                        logs.append(f"Position size ermittelt: {position_size}")
+                        logs.append(f"Position size: {position_size}, Liquidation price: {liquidation_price}")
                 except (ValueError, TypeError) as e:
                     position_size = 0
                     if logs is not None:
-                        logs.append(f"Fehler beim Parsen der Positionsgröße: {e}")
+                        logs.append(f"Fehler beim Parsen: {e}")
                 break
     else:
         if logs is not None:
             logs.append(f"API Antwort Fehlercode: {response.get('code')}")
 
-    return position_size, raw_positions
+    return position_size, raw_positions, liquidation_price
 
 def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, position_side="LONG"):
     timestamp = int(time.time() * 1000)
@@ -383,17 +411,26 @@ def webhook():
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
-    # 5. Positionsgröße ermitteln
+    # 5. Positionsgröße und Liquidationspreis ermitteln
     try:
-        sell_quantity, positions_raw = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+    
         if sell_quantity == 0:
             executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
             if executed_qty_str:
                 sell_quantity = float(executed_qty_str)
                 logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
+    
+        if liquidation_price:
+            stop_loss_price = round(liquidation_price * 1.015, 6)
+            logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
+        else:
+            stop_loss_price = None
+            logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
     except Exception as e:
         sell_quantity = 0
-        logs.append(f"Fehler bei Positionsabfrage: {e}")
+        stop_loss_price = None
+        logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
 
     # 6. Kaufpreise ggf. löschen
     if firebase_secret and not open_sell_orders_exist:
@@ -446,6 +483,26 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Limit-Order: {e}")
 
+    # 11. Bestehende STOP_MARKET SL-Orders löschen
+    try:
+        for order in open_orders.get("data", {}).get("orders", []):
+            if order.get("type") == "STOP_MARKET" and order.get("positionSide") == position_side:
+                cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
+                logs.append(f"Bestehende SL-Order gelöscht: {cancel_response}")
+    except Exception as e:
+        logs.append(f"Fehler beim Löschen alter Stop-Market-Orders: {e}")
+
+    # 12. Stop-Loss Order setzen
+    stop_loss_response = None
+    try:
+        if sell_quantity > 0 and stop_loss_price:
+            stop_loss_response = place_stop_loss_order(api_key, secret_key, symbol, sell_quantity, stop_loss_price, position_side)
+            logs.append(f"Stop-Loss Order gesetzt bei {stop_loss_price}: {stop_loss_response}")
+        else:
+            logs.append("Keine Stop-Loss Order gesetzt – unvollständige Daten.")
+    except Exception as e:
+        logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
+
     # 11. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))
     anzahl_käufe = len(kaufpreise or [])
@@ -475,6 +532,8 @@ def webhook():
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
         "usdt_balance_before_order": available_usdt,
+        "stop_loss_price": stop_loss_price if liquidation_price else None,
+        "stop_loss_response": stop_loss_response if liquidation_price else None,
         "logs": logs
     })
 
