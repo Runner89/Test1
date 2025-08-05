@@ -124,27 +124,27 @@ def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, pos
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
 
-def send_signed_request(method, endpoint, api_key, secret_key, params):
-    base_url = "https://api.bingx.com"
+def send_signed_request(http_method, endpoint, api_key, secret_key, params):
+    base_url = "https://open-api.bingx.com"
     
-    # ✅ Timestamp hinzufügen
-    params["timestamp"] = int(time.time() * 1000)
+    # Zeitstempel hinzufügen
+    params["timestamp"] = str(int(time.time() * 1000))
     
-    # ✅ Signatur erzeugen
+    # Signatur generieren
     signature = generate_signature(secret_key, params)
     params["signature"] = signature
     
     headers = {
-        "X-API-KEY": api_key
+        "X-BX-APIKEY": api_key
     }
 
-    if method == "GET":
-        url = f"{base_url}{endpoint}?{urllib.parse.urlencode(params)}"
-        response = requests.get(url, headers=headers)
+    if http_method == "GET":
+        response = requests.get(base_url + endpoint, headers=headers, params=params)
+    elif http_method == "POST":
+        response = requests.post(base_url + endpoint, headers=headers, json=params)
     else:
-        url = f"{base_url}{endpoint}"
-        response = requests.post(url, headers=headers, data=params)
-    
+        raise ValueError("HTTP-Methode nicht unterstützt")
+
     return response.json()
 
 def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
