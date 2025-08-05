@@ -343,6 +343,7 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 def webhook():
     data = request.json
     logs = []
+    _, _, _, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
 
     # Eingabewerte
     pyramiding = float(data.get("pyramiding", 1))
@@ -375,7 +376,7 @@ def webhook():
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
-     _, _, _, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
+     
 
     # 1. Hebel setzen
     try:
