@@ -418,7 +418,7 @@ def webhook():
         
         open_sell_orders_exist = False
 
-        berechnet = (position_value_before_order + available_usdt - sicherheit) / pyramiding
+        berechnet = (position_vor_Order + available_usdt - sicherheit) / pyramiding
         usdt_amount = max(berechnet, 0)
         logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
 
@@ -577,7 +577,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "AA_Position vor Order": position_value_before_order,
+        "AA_Position vor Order": position_vor_Order,
         "AA_verfügbares Guthaben vor Order": verfuegbares_Guthaben_vor_Order,
         "AA_TOTAL": Total,
         "AA_Ergebnis": Ergebnis,
