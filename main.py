@@ -311,67 +311,62 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
-def get_user_trades(api_key, secret_key, symbol, limit=100):
-    base_url = "https://open-api.bingx.com"
-    endpoint = "/openApi/swap/v2/trade/allFillOrders"
-    url = base_url + endpoint
-
-    timestamp = str(int(time.time() * 1000))
-    recv_window = "5000"
-
-    params = {
-        "symbol": symbol,
-        "timestamp": timestamp,
-        "recvWindow": recv_window,
-        "limit": limit
-    }
-
-    query_string = '&'.join([f"{key}={params[key]}" for key in sorted(params)])
-    signature = hmac.new(
-        secret_key.encode("utf-8"),
-        query_string.encode("utf-8"),
-        hashlib.sha256
-    ).hexdigest()
-
-    headers = {
-        "X-BX-APIKEY": api_key
-    }
-
-    full_url = f"{url}?{query_string}&signature={signature}"
-
-    response = requests.get(full_url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        if data.get("code") == 0:
-            return data.get("data", [])
-        else:
-            raise Exception(f"BingX API Fehler: {data.get('msg')}")
-    else:
-        raise Exception(f"HTTP Fehler {response.status_code}: {response.text}")
-
-def get_last_buy_order(api_key, secret_key, symbol, position_side="LONG"):
-    logs = []
+def get_user_trades(api_key, secret_key, symbol):
+    """
+    Holt Trades vom API und gibt eine Liste von Trades zurück.
+    Falls etwas schiefgeht, wird eine leere Liste zurückgegeben.
+    """
     try:
-        trades = get_user_trades(api_key, secret_key, symbol)
-        logs.append(f"Anzahl Trades: {len(trades)}")
-        for trade in reversed(trades):
-            if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
-                qty = float(trade.get("executedQty", 0))
-                price = float(trade.get("price", 0))
-                usdt_value = qty * price
-                logs.append(f"Gefundene Kauforder: qty={qty}, price={price}")
-                return {
-                    "price": price,
-                    "qty": qty,
-                    "usdt_value": round(usdt_value, 2),
-                    "orderId": trade.get("orderId"),
-                    "timestamp": trade.get("time")
-                }, logs
-        logs.append("Keine Kauforder gefunden.")
-        return None, logs
+        # Beispiel-API-Aufruf, ersetze das durch deine API-Call-Funktion
+        response = call_api_to_get_trades(api_key, secret_key, symbol)
+
+        # Prüfen, ob die Antwort ein Dict ist
+        if isinstance(response, dict):
+            # trades können z.B. unter response['data']['trades'] liegen
+            trades = response.get('data', {}).get('trades', [])
+            # Sicherstellen, dass trades eine Liste ist
+            if isinstance(trades, list):
+                return trades
+            else:
+                print(f"Erwartete Liste für trades, aber bekam: {type(trades)}")
+                return []
+        else:
+            print(f"Erwartete Dict als Antwort, bekam: {type(response)}")
+            return []
     except Exception as e:
-        logs.append(f"Fehler: {str(e)}")
+        print(f"Fehler beim Abrufen der Trades: {e}")
+        return []
+
+
+def get_last_buy_order(api_key, secret_key, symbol, position_side):
+    """
+    Findet den letzten Kauf-Trade (BUY) für ein Symbol und Positions-Seite (LONG/SHORT).
+    Gibt (last_buy_order_dict, logs) zurück.
+    """
+    trades = get_user_trades(api_key, secret_key, symbol)
+    logs = []
+    last_buy_order = None
+
+    if not trades:
+        logs.append("Keine Trades gefunden.")
         return None, logs
+
+    # Durch die Trades iterieren
+    for trade in trades:
+        if isinstance(trade, dict):
+            side = trade.get('side')
+            pos_side = trade.get('positionSide')
+            if side == 'BUY' and pos_side == position_side:
+                # Falls mehrere, nehmen wir den letzten (aktuellsten)
+                last_buy_order = trade
+        else:
+            logs.append(f"Unerwarteter Trade-Typ: {type(trade)} Inhalt: {trade}")
+
+    if last_buy_order is None:
+        logs.append("Kein BUY-Trade für die angegebene Positions-Seite gefunden.")
+
+    return last_buy_order, logs
+
 
 
 def berechne_durchschnittspreis(preise):
