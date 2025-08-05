@@ -401,32 +401,11 @@ def webhook():
                 logs.append(f"Positionswert (USDT): {position_value_usdt}")
                 break
 
-        # Firebase-Logik, wenn vorhanden
-        if firebase_secret:
-            open_sell_orders_exist = False
-            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                for order in open_orders.get("data", {}).get("orders", []):
-                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                        open_sell_orders_exist = True
-                        break
-
-            if open_sell_orders_exist:
-                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
-                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
-            else:
-                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
-                if available_usdt is not None and pyramiding > 0:
-                    # Neue Berechnung der Ordergröße:
-                    berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
-                    usdt_amount = max(berechnet, 0)
-                    logs.append(f"Neue Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
-                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
-        else:
-            # Falls kein Firebase, einfach berechnen
-            if available_usdt is not None and pyramiding > 0:
-                berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
-                usdt_amount = max(berechnet, 0)
-                logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+        # Ordergröße berechnen (ohne Firebase)
+        if available_usdt is not None and pyramiding > 0:
+            berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
+            usdt_amount = max(berechnet, 0)
+            logs.append(f"Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
 
     except Exception as e:
         logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
