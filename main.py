@@ -384,28 +384,14 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Orderprüfung: {e}")
 
-    # 3. Ordergröße ermitteln (Compounding-Logik)
+    # 3. Ordergröße ermitteln (ohne Firebase)
     usdt_amount = 0
-    if firebase_secret:
-        try:
-            open_sell_orders_exist = False
-            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                for order in open_orders.get("data", {}).get("orders", []):
-                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                        open_sell_orders_exist = True
-                        break
-
-            if open_sell_orders_exist:
-                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
-                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
-            else:
-                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
-                if available_usdt is not None and pyramiding > 0:
-                    usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
-                    logs.append(f"Neue Ordergröße berechnet: (Balance {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding} = {usdt_amount}")
-                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
+    try:
+        if available_usdt is not None and pyramiding > 0:
+            usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
+            logs.append(f"Ordergröße berechnet (ohne Firebase): (Balance {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding} = {usdt_amount}")
+    except Exception as e:
+        logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
@@ -416,13 +402,13 @@ def webhook():
     # 5. Positionsgröße und Liquidationspreis ermitteln
     try:
         sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
-    
+
         if sell_quantity == 0:
             executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
             if executed_qty_str:
                 sell_quantity = float(executed_qty_str)
                 logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
-    
+
         if liquidation_price:
             stop_loss_price = round(liquidation_price * 1.02, 6)
             logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
@@ -451,7 +437,7 @@ def webhook():
         logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
 
     # 6. Kaufpreise ggf. löschen
-    if firebase_secret and not open_sell_orders_exist:
+    if firebase_secret and (not open_orders or not any(order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT" for order in open_orders.get("data", {}).get("orders", []))):
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
         except Exception as e:
@@ -542,7 +528,7 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
 
-    # 11. Alarm senden
+    # 13. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))
     anzahl_käufe = len(kaufpreise or [])
     anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
@@ -565,12 +551,12 @@ def webhook():
         "limit_order_result": limit_order_response,
         "symbol": symbol,
         "usdt_amount": usdt_amount,
+        "usdt_balance_before_order": available_usdt,
         "sell_quantity": sell_quantity,
         "price_from_webhook": price_from_webhook,
         "sell_percentage": sell_percentage,
         "firebase_average_price": durchschnittspreis,
         "firebase_all_prices": kaufpreise,
-        "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
         "used_usd_amount": bereits_investierter_betrag,
