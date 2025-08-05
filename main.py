@@ -64,10 +64,12 @@ def get_current_price(symbol: str):
         return float(data["data"]["price"])
     else:
         return None
-def get_user_fills(api_key, secret_key, symbol, limit=20):
+
+
+def get_fills(api_key, secret_key, symbol, limit=20):
     endpoint = "/openApi/swap/v2/trade/allFillOrders"
     timestamp = int(time.time() * 1000)
-
+    
     params = {
         "symbol": symbol,
         "limit": limit,
@@ -76,15 +78,12 @@ def get_user_fills(api_key, secret_key, symbol, limit=20):
 
     query_string = "&".join(f"{k}={params[k]}" for k in sorted(params))
     signature = generate_signature(secret_key, query_string)
-
     url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
     headers = {"X-BX-APIKEY": api_key}
 
     response = requests.get(url, headers=headers)
-    try:
-        return response.json()
-    except Exception as e:
-        return {"error": str(e), "raw": response.text}
+    return response.json()
+    
 
 def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG"):
     price = get_current_price(symbol)
@@ -564,7 +563,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-    trades = get_user_fills(api_key, secret_key, symbol="BABY-USDT", limit=10)
+    trades = get_fills(api_key, secret_key, symbol, limit=20)
 
 
     return jsonify({
