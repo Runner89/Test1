@@ -311,50 +311,68 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
+def get_user_trades(api_key, secret_key, symbol, limit=100):
+    base_url = "https://open-api.bingx.com"
+    endpoint = "/openApi/swap/v2/trade/allFillOrders"
+    url = base_url + endpoint
+
+    timestamp = str(int(time.time() * 1000))
+    recv_window = "5000"
+
+    params = {
+        "symbol": symbol,
+        "timestamp": timestamp,
+        "recvWindow": recv_window,
+        "limit": limit
+    }
+
+    query_string = '&'.join([f"{key}={params[key]}" for key in sorted(params)])
+    signature = hmac.new(
+        secret_key.encode("utf-8"),
+        query_string.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    headers = {
+        "X-BX-APIKEY": api_key
+    }
+
+    full_url = f"{url}?{query_string}&signature={signature}"
+
+    response = requests.get(full_url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        if data.get("code") == 0:
+            return data.get("data", [])
+        else:
+            raise Exception(f"BingX API Fehler: {data.get('msg')}")
+    else:
+        raise Exception(f"HTTP Fehler {response.status_code}: {response.text}")
+
 def get_last_buy_order(api_key, secret_key, symbol, position_side="LONG"):
     logs = []
     try:
         trades = get_user_trades(api_key, secret_key, symbol)
-        logs.append(f"Trades erhalten: {len(trades)} Einträge")
+        logs.append(f"Anzahl Trades: {len(trades)}")
+        for trade in reversed(trades):
+            if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
+                qty = float(trade.get("executedQty", 0))
+                price = float(trade.get("price", 0))
+                usdt_value = qty * price
+                logs.append(f"Gefundene Kauforder: qty={qty}, price={price}")
+                return {
+                    "price": price,
+                    "qty": qty,
+                    "usdt_value": round(usdt_value, 2),
+                    "orderId": trade.get("orderId"),
+                    "timestamp": trade.get("time")
+                }, logs
+        logs.append("Keine Kauforder gefunden.")
+        return None, logs
     except Exception as e:
-        logs.append(f"Fehler beim Abrufen der Trades: {e}")
+        logs.append(f"Fehler: {str(e)}")
         return None, logs
 
-    for trade in reversed(trades):
-        if not isinstance(trade, dict):
-            logs.append(f"Warnung: Trade ist kein Dict, sondern {type(trade)}: {trade}")
-            continue
-        if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
-            qty = float(trade.get("executedQty", 0))
-            price = float(trade.get("price", 0))
-            usdt_value = qty * price
-            logs.append(f"Letzte Kauforder gefunden: qty={qty}, price={price}, usdt_value={usdt_value}")
-            return {
-                "price": price,
-                "qty": qty,
-                "usdt_value": round(usdt_value, 2),
-                "orderId": trade.get("orderId"),
-                "timestamp": trade.get("time")
-            }, logs
-
-    logs.append("Keine Kauforder gefunden.")
-    return None, logs
-
-def get_last_buy_order(api_key, secret_key, symbol, position_side="LONG"):
-    trades = get_user_trades(api_key, secret_key, symbol)
-    for trade in reversed(trades):  # Neuste zuerst durchsuchen
-        if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
-            qty = float(trade.get("executedQty", 0))
-            price = float(trade.get("price", 0))
-            usdt_value = qty * price
-            return {
-                "price": price,
-                "qty": qty,
-                "usdt_value": round(usdt_value, 2),
-                "orderId": trade.get("orderId"),
-                "timestamp": trade.get("time")
-            }
-    return None
 
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
