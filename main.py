@@ -311,69 +311,6 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
-def get_user_trades(api_key, secret_key, symbol):
-    """
-    Holt Trades vom API und gibt eine Liste von Trades zurück.
-    Falls etwas schiefgeht, wird eine leere Liste zurückgegeben.
-    """
-    try:
-        # Beispiel-API-Aufruf, ersetze das durch deine API-Call-Funktion
-        response = call_api_to_get_trades(api_key, secret_key, symbol)
-
-        # Prüfen, ob die Antwort ein Dict ist
-        if isinstance(response, dict):
-            # trades können z.B. unter response['data']['trades'] liegen
-            trades = response.get('data', {}).get('trades', [])
-            # Sicherstellen, dass trades eine Liste ist
-            if isinstance(trades, list):
-                return trades
-            else:
-                print(f"Erwartete Liste für trades, aber bekam: {type(trades)}")
-                return []
-        else:
-            print(f"Erwartete Dict als Antwort, bekam: {type(response)}")
-            return []
-    except Exception as e:
-        print(f"Fehler beim Abrufen der Trades: {e}")
-        return []
-
-
-def get_last_buy_order(api_key, secret_key, symbol, position_side):
-    """
-    Findet den letzten Kauf-Trade (BUY) für ein Symbol und Positions-Seite (LONG/SHORT).
-    Gibt (last_buy_order_dict, logs) zurück.
-    """
-    trades = get_user_trades(api_key, secret_key, symbol)
-    logs = []
-
-    if not trades:
-        logs.append("Keine Trades gefunden.")
-        return None, logs
-
-    last_buy_order = None  # initial auf None setzen
-
-    # Durch die Trades iterieren
-    for trade in trades:
-        if isinstance(trade, dict):
-            side = trade.get('side')
-            pos_side = trade.get('positionSide')
-            if side == 'BUY' and pos_side == position_side:
-                # Wenn mehrere, nehmen wir den letzten (aktuellsten)
-                last_buy_order = trade
-        else:
-            logs.append(f"Unerwarteter Trade-Typ: {type(trade)} Inhalt: {trade}")
-
-    if last_buy_order is not None:
-        side = last_buy_order.get("side", "")
-        pos_side = last_buy_order.get("positionSide", "")
-        logs.append(f"Letzter Kauf-Trade: side={side}, positionSide={pos_side}")
-    else:
-        logs.append("Kein BUY-Trade für die angegebene Positions-Seite gefunden.")
-
-    return last_buy_order, logs
-
-
-
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
     return round(sum(preise) / len(preise), 6) if preise else None
@@ -394,6 +331,15 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
         "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
+
+def get_trade_history(api_key, secret_key, symbol, position_side="LONG", limit=10):
+    endpoint = "/openApi/swap/v2/trade/allFillOrders"
+    params = {
+        "symbol": symbol,
+        "positionSide": position_side.upper(),
+        "limit": limit  # Anzahl der letzten Trades
+    }
+    return send_signed_request("GET", endpoint, api_key, secret_key, params)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -606,9 +552,13 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-
-    last_buy_order, logs_from_last_order = get_last_buy_order(api_key, secret_key, symbol, position_side)
-    logs.extend(logs_from_last_order)  # logs von get_last_buy_order anhängen
+    trades_response = get_trade_history(api_key, secret_key, "BABY-USDT", "LONG", limit=5)
+    if trades_response.get("code") == 0:
+        trades = trades_response.get("data", [])
+        for trade in trades:
+            print(f"TradeID: {trade['tradeId']}, Menge: {trade['quantity']}, Preis: {trade['price']}, Zeit: {trade['time']}")
+    else:
+        print("Fehler beim Abrufen der Trade History:", trades_response.get("msg"))
 
     return jsonify({
         "error": False,
@@ -624,7 +574,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "last_buy_order": last_buy_order,
+        "trades": trades,
         "logs": logs
     })
 
