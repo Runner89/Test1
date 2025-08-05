@@ -389,6 +389,7 @@ def webhook():
     # 3. Ordergröße ermitteln (angepasste Compounding-Logik)
     usdt_amount = 0
     position_value_usdt = 0.0
+    open_sell_orders_exist = False
     try:
         # Positionen abfragen
         sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
@@ -401,7 +402,7 @@ def webhook():
                 logs.append(f"Positionswert (USDT): {position_value_usdt}")
                 break
 
-        open_sell_orders_exist = False
+   
         if isinstance(open_orders, dict) and open_orders.get("code") == 0:
             for order in open_orders.get("data", {}).get("orders", []):
                 if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
