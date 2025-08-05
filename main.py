@@ -410,12 +410,13 @@ def webhook():
     # 4. Ordergröße für Market-Order bestimmen (nutze bereits investierten Betrag)
     usdt_amount = 0
     if bereits_investierter_betrag is None or bereits_investierter_betrag == 0:
-        if available_usdt is not None and pyramiding > 0:
-            usdt_amount = max((available_usdt - sicherheit) * pyramiding, 0)
-            logs.append(f"Keine offene Position. Neue Ordergröße basierend auf verfügbarem Guthaben und Hebel: {usdt_amount}")
+        # Berechne usdt_amount basierend auf verfügbarem Guthaben * Hebel
+        usdt_amount = max((available_usdt - sicherheit) * pyramiding, 0)
+        logs.append(f"Keine offene Position. Ordergröße berechnet: {usdt_amount}")
     else:
         usdt_amount = bereits_investierter_betrag
-        logs.append(f"Offene Position gefunden. Verwende bereits investierten Betrag als Ordergröße: {usdt_amount}")
+        logs.append(f"Offene Position gefunden. Verwende investierten Betrag: {usdt_amount}")
+
 
     # Market-Order Menge berechnen
     quantity = 0
