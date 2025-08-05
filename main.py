@@ -422,7 +422,7 @@ def webhook():
                 logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
     
         if liquidation_price:
-            stop_loss_price = round(liquidation_price * 1.015, 6)
+            stop_loss_price = round(liquidation_price * 1.02, 6)
             logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
         else:
             stop_loss_price = None
@@ -446,16 +446,37 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
 
-    # 8. Durchschnitt berechnen
+    # 8. Durchschnittspreis bestimmen – zuerst aus Firebase, sonst avgPrice von BingX
     durchschnittspreis = None
     kaufpreise = []
-    if firebase_secret:
-        try:
+
+    # 1. Versuch: Firebase lesen
+    try:
+        if firebase_secret:
             kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
             durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
-            logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+            if durchschnittspreis:
+                logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+            else:
+                logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
+    except Exception as e:
+        logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
+
+    # 2. Fallback: avgPrice aus BingX-Position, wenn Firebase-Durchschnitt fehlt oder Fehler
+    if not durchschnittspreis or durchschnittspreis == 0:
+        try:
+            for pos in positions_raw:
+                if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                    if avg_price > 0:
+                        durchschnittspreis = round(avg_price * (1 - 0.002), 6)
+                        sende_telegram_nachricht(f"Fehler in Firebase bei Coin: {base_asset}")
+                        logs.append(f"[Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
+                    else:
+                        logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
+                    break
         except Exception as e:
-            logs.append(f"Fehler bei Durchschnittsberechnung: {e}")
+            logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
 
     # 9. Alte Sell-Limit-Orders löschen
     try:
