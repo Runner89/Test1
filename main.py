@@ -7,6 +7,7 @@
 #Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
 #StopLoss 2% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.02% für die Berechnung der Sell-Limit-Order verwendet.
+#Die Ordergrösse wird im Code berechnet und nicht mehr in Firebase
 
 ###### Funktioniert nur, wenn alle Order die gleiche Grösse haben (Durchschnittspreis stimmt sonst nicht in Firebase) #####
 
@@ -346,7 +347,7 @@ def webhook():
     secret_key = data.get("secret_key")
     symbol = data.get("symbol", "BTC-USDT")
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
-    firebase_secret = data.get("FIREBASE_SECRET")  # bleibt, aber nur für andere Zwecke
+    firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
 
     if not api_key or not secret_key:
@@ -385,7 +386,7 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Orderprüfung: {e}")
 
-    # 3. Ordergröße ermitteln (ohne Firebase)
+    # 3. Ordergröße ermitteln (angepasste Compounding-Logik)
     usdt_amount = 0
     position_value_usdt = 0.0
     try:
@@ -400,10 +401,33 @@ def webhook():
                 logs.append(f"Positionswert (USDT): {position_value_usdt}")
                 break
 
-        if available_usdt is not None and pyramiding > 0:
-            berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
-            usdt_amount = max(berechnet, 0)
-            logs.append(f"Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+        # Firebase-Logik, wenn vorhanden
+        if firebase_secret:
+            open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
+
+            if open_sell_orders_exist:
+                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
+                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
+            else:
+                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
+                if available_usdt is not None and pyramiding > 0:
+                    # Neue Berechnung der Ordergröße:
+                    berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
+                    usdt_amount = max(berechnet, 0)
+                    logs.append(f"Neue Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
+        else:
+            # Falls kein Firebase, einfach berechnen
+            if available_usdt is not None and pyramiding > 0:
+                berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
+                usdt_amount = max(berechnet, 0)
+                logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+
     except Exception as e:
         logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
 
@@ -434,14 +458,14 @@ def webhook():
         stop_loss_price = None
         logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
 
-    # 6. Kaufpreise ggf. löschen (Firebase-bezogen, bleibt wenn du willst)
-    if firebase_secret:
+    # 6. Kaufpreise ggf. löschen
+    if firebase_secret and not open_sell_orders_exist:
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
 
-    # 7. Kaufpreis speichern (Firebase-bezogen)
+    # 7. Kaufpreis speichern
     if firebase_secret and price_from_webhook:
         try:
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
@@ -452,6 +476,7 @@ def webhook():
     durchschnittspreis = None
     kaufpreise = []
 
+    # 1. Versuch: Firebase lesen
     try:
         if firebase_secret:
             kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
@@ -463,6 +488,7 @@ def webhook():
     except Exception as e:
         logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
 
+    # 2. Fallback: avgPrice aus BingX-Position, wenn Firebase-Durchschnitt fehlt oder Fehler
     if not durchschnittspreis or durchschnittspreis == 0:
         try:
             for pos in positions_raw:
@@ -524,7 +550,7 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
 
-    # 13. Alarm senden (Firebase-bezogen)
+    # 13. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))
     anzahl_käufe = len(kaufpreise or [])
     anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
@@ -557,7 +583,6 @@ def webhook():
         "stop_loss_response": stop_loss_response if liquidation_price else None,
         "logs": logs
     })
-
 
 
 if __name__ == "__main__":
