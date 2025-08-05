@@ -65,7 +65,7 @@ def get_current_price(symbol: str):
     else:
         return None
 def get_user_fills(api_key, secret_key, symbol, limit=20):
-    endpoint = "/openApi/swap/v2/user/fills"
+    endpoint = "/openApi/swap/v2/trade/allFillOrders"
     timestamp = int(time.time() * 1000)
 
     params = {
