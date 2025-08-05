@@ -375,6 +375,8 @@ def webhook():
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
+     _, _, _, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
+
     # 1. Hebel setzen
     try:
         logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
@@ -572,7 +574,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-    _, _, _, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
+   
     
     return jsonify({
         "error": False,
