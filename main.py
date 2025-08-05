@@ -345,11 +345,12 @@ def get_last_buy_order(api_key, secret_key, symbol, position_side):
     """
     trades = get_user_trades(api_key, secret_key, symbol)
     logs = []
-    last_buy_order = None
 
     if not trades:
         logs.append("Keine Trades gefunden.")
         return None, logs
+
+    last_buy_order = None  # initial auf None setzen
 
     # Durch die Trades iterieren
     for trade in trades:
@@ -357,12 +358,16 @@ def get_last_buy_order(api_key, secret_key, symbol, position_side):
             side = trade.get('side')
             pos_side = trade.get('positionSide')
             if side == 'BUY' and pos_side == position_side:
-                # Falls mehrere, nehmen wir den letzten (aktuellsten)
+                # Wenn mehrere, nehmen wir den letzten (aktuellsten)
                 last_buy_order = trade
         else:
             logs.append(f"Unerwarteter Trade-Typ: {type(trade)} Inhalt: {trade}")
 
-    if last_buy_order is None:
+    if last_buy_order is not None:
+        side = last_buy_order.get("side", "")
+        pos_side = last_buy_order.get("positionSide", "")
+        logs.append(f"Letzter Kauf-Trade: side={side}, positionSide={pos_side}")
+    else:
         logs.append("Kein BUY-Trade für die angegebene Positions-Seite gefunden.")
 
     return last_buy_order, logs
