@@ -7,7 +7,6 @@
 #Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
 #StopLoss 2% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.02% für die Berechnung der Sell-Limit-Order verwendet.
-#Die Ordergrösse wird im Code berechnet und nicht mehr in Firebase
 
 ###### Funktioniert nur, wenn alle Order die gleiche Grösse haben (Durchschnittspreis stimmt sonst nicht in Firebase) #####
 
@@ -161,7 +160,6 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
 
     position_size = 0
     liquidation_price = None
-    position_value = 0  # <== NEU
 
     if response.get("code") == 0:
         for pos in positions:
@@ -171,13 +169,10 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
                 try:
                     position_size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
                     liquidation_price = float(pos.get("liquidationPrice", 0))
-                    position_value = float(pos.get("positionValue", 0))  # <== NEU
                     if logs is not None:
                         logs.append(f"Position size: {position_size}, Liquidation price: {liquidation_price}")
-                        logs.append(f"Positionswert (USDT): {position_value}")  # <== NEU
                 except (ValueError, TypeError) as e:
                     position_size = 0
-                    position_value = 0
                     if logs is not None:
                         logs.append(f"Fehler beim Parsen: {e}")
                 break
@@ -185,8 +180,7 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
         if logs is not None:
             logs.append(f"API Antwort Fehlercode: {response.get('code')}")
 
-    return position_size, raw_positions, liquidation_price, position_value  # <== Rückgabe ergänzt
-
+    return position_size, raw_positions, liquidation_price
 
 def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, position_side="LONG"):
     timestamp = int(time.time() * 1000)
@@ -317,6 +311,22 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
+def get_last_buy_order(api_key, secret_key, symbol, position_side="LONG"):
+    trades = get_user_trades(api_key, secret_key, symbol)
+    for trade in reversed(trades):  # neueste zuerst
+        if trade.get("side") == "BUY" and trade.get("positionSide", "").upper() == position_side.upper():
+            qty = float(trade.get("executedQty", 0))
+            price = float(trade.get("price", 0))
+            usdt_value = qty * price
+            return {
+                "price": price,
+                "qty": qty,
+                "usdt_value": round(usdt_value, 2),
+                "orderId": trade.get("orderId"),
+                "timestamp": trade.get("time")
+            }
+    return None
+
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
     return round(sum(preise) / len(preise), 6) if preise else None
@@ -338,12 +348,10 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
 
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
     logs = []
-    
 
     # Eingabewerte
     pyramiding = float(data.get("pyramiding", 1))
@@ -355,9 +363,6 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    
-    
-    
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
@@ -379,11 +384,6 @@ def webhook():
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
-    position_vor_Order = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
-    verfuegbares_Guthaben_vor_Order = available_usdt
-    Total = position_vor_Order + verfuegbares_Guthaben_vor_Order
-    Ergebnis = (position_vor_Order + verfuegbares_Guthaben_vor_Order - sicherheit) / pyramiding
-
     # 1. Hebel setzen
     try:
         logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
@@ -400,30 +400,28 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Orderprüfung: {e}")
 
-    # 3. Ordergröße ermitteln (angepasste Compounding-Logik)
+    # 3. Ordergröße ermitteln (Compounding-Logik)
     usdt_amount = 0
-    position_value_usdt = 0.0
-    try:
-        # Positionen abfragen
-        sell_quantity, positions_raw, liquidation_price, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
-        # Positionswert in USDT berechnen
-        for pos in positions_raw:
-            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                position_qty = float(pos.get("positionAmt", 0))  # Menge (kann negativ sein)
-                avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                position_value_usdt = abs(position_qty) * avg_price
-                logs.append(f"Positionswert (USDT): {position_value_usdt}")
-                break
+    if firebase_secret:
+        try:
+            open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
 
-        
-        open_sell_orders_exist = False
-
-        berechnet = (verfuegbares_Guthaben_vor_Order - sicherheit) / pyramiding
-        usdt_amount = max(berechnet, 0)
-        logs.append(f"Ordergröße berechnet (kein Firebase): ((Position {position_vor_Order} + Guthaben {verfuegbares_Guthaben_vor_Order} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
-
-    except Exception as e:
-        logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
+            if open_sell_orders_exist:
+                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
+                logs.append(f"Verwende gespeicherte Ordergröße aus Firebase: {usdt_amount}")
+            else:
+                logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
+                if available_usdt is not None and pyramiding > 0:
+                    usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
+                    logs.append(f"Neue Ordergröße berechnet: (Balance {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding} = {usdt_amount}")
+                    logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
@@ -433,14 +431,14 @@ def webhook():
 
     # 5. Positionsgröße und Liquidationspreis ermitteln
     try:
-        sell_quantity, positions_raw, liquidation_price, position_value = get_current_position(api_key, secret_key, symbol, position_side, logs)
-
+        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+    
         if sell_quantity == 0:
             executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
             if executed_qty_str:
                 sell_quantity = float(executed_qty_str)
                 logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
-
+    
         if liquidation_price:
             stop_loss_price = round(liquidation_price * 1.02, 6)
             logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
@@ -544,7 +542,7 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
 
-    # 13. Alarm senden
+    # 11. Alarm senden
     alarm_trigger = int(data.get("alarm", 0))
     anzahl_käufe = len(kaufpreise or [])
     anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
@@ -561,8 +559,14 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-   
-    
+    # Letzte Kauforder abrufen
+    last_buy_order = None
+    try:
+        last_buy_order = get_last_buy_order(api_key, secret_key, symbol, position_side)
+        logs.append(f"Letzte Kauforder: {last_buy_order}")
+    except Exception as e:
+        logs.append(f"Fehler beim Abrufen der letzten Kauforder: {e}")
+
     return jsonify({
         "error": False,
         "order_result": order_response,
@@ -577,13 +581,9 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "AA_Position vor Order": position_vor_Order,
-        "AA_verfügbares Guthaben vor Order": verfuegbares_Guthaben_vor_Order,
-        "AA_TOTAL": Total,
-        "AA_Ergebnis": Ergebnis,
+        "last_buy_order": last_buy_order
         "logs": logs
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
