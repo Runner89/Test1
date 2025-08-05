@@ -44,8 +44,10 @@ FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-def generate_signature(secret_key: str, params: str) -> str:
-    return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
+def generate_signature(secret_key: str, params: dict) -> str:
+    sorted_params = sorted(params.items())  # Alphabetisch sortieren
+    query_string = urllib.parse.urlencode(sorted_params)  # URL-kodieren
+    return hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
@@ -122,29 +124,27 @@ def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, pos
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
 
-def send_signed_request(http_method, endpoint, api_key, secret_key, params=None):
-    if params is None:
-        params = {}
+def send_signed_request(method, endpoint, api_key, secret_key, params):
+    base_url = "https://api.bingx.com"
+    
+    # ✅ Timestamp hinzufügen
+    params["timestamp"] = int(time.time() * 1000)
+    
+    # ✅ Signatur erzeugen
+    signature = generate_signature(secret_key, params)
+    params["signature"] = signature
+    
+    headers = {
+        "X-API-KEY": api_key
+    }
 
-    timestamp = int(time.time() * 1000)
-    params['timestamp'] = timestamp
-
-    query_string = "&".join(f"{k}={params[k]}" for k in sorted(params))
-    signature = hmac.new(secret_key.encode(), query_string.encode(), hashlib.sha256).hexdigest()
-    params['signature'] = signature
-
-    url = f"{BASE_URL}{endpoint}"
-    headers = {"X-BX-APIKEY": api_key}
-
-    if http_method == "GET":
-        response = requests.get(url, headers=headers, params=params)
-    elif http_method == "POST":
-        response = requests.post(url, headers=headers, json=params)
-    elif http_method == "DELETE":
-        response = requests.delete(url, headers=headers, params=params)
+    if method == "GET":
+        url = f"{base_url}{endpoint}?{urllib.parse.urlencode(params)}"
+        response = requests.get(url, headers=headers)
     else:
-        raise ValueError("Unsupported HTTP method")
-
+        url = f"{base_url}{endpoint}"
+        response = requests.post(url, headers=headers, data=params)
+    
     return response.json()
 
 def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
@@ -337,7 +337,7 @@ def get_trade_history(api_key, secret_key, symbol, position_side="LONG", limit=1
     params = {
         "symbol": symbol,
         "positionSide": position_side.upper(),
-        "limit": limit  # Anzahl der letzten Trades
+        "limit": limit,
     }
     return send_signed_request("GET", endpoint, api_key, secret_key, params)
 
