@@ -57,6 +57,26 @@ def get_futures_balance(api_key: str, secret_key: str):
     response = requests.get(url, headers=headers)
     return response.json()
 
+def get_position_value_for_symbol(api_key, secret_key, symbol: str):
+    try:
+        positions_response = get_futures_positions(api_key, secret_key)
+        if positions_response.get("code") == 0:
+            positions = positions_response.get("data", [])
+            for pos in positions:
+                if pos.get("symbol") == symbol:
+                    position_value = float(pos.get("positionValue", 0))
+                    logs.append(f"Gefundene Position für {symbol}: {pos}")
+                    logs.append(f"Positionswert (USDT) für {symbol}: {position_value}")
+                    return position_value
+            logs.append(f"Keine offene Position für {symbol} gefunden.")
+            return 0
+        else:
+            logs.append(f"Fehler beim Abrufen der Positionen: {positions_response.get('msg')}")
+            return None
+    except Exception as e:
+        logs.append(f"Fehler bei Positions-Abfrage: {e}")
+        return None
+
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
     response = requests.get(url)
@@ -370,6 +390,8 @@ def webhook():
         logs.append(f"Fehler bei Balance-Abfrage: {e}")
         available_usdt = None
 
+    position_value = get_position_value_for_symbol(api_key, secret_key, symbol)
+
     # 1. Hebel setzen
     try:
         logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
@@ -581,7 +603,8 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "logs": logs
+        "logs": logs,
+        "AA_Position_Value": position_value         
     })
 
 
