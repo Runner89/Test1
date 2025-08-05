@@ -381,6 +381,7 @@ def webhook():
 
     position_vor_Order = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
     verfuegbares_Guthaben_vor_Order = available_usdt
+    Total = position_vor_Order + verfuegbares_Guthaben_vor_Order
     Ergebnis = (position_vor_Order + verfuegbares_Guthaben_vor_Order - sicherheit) / pyramiding
 
     # 1. Hebel setzen
@@ -578,6 +579,7 @@ def webhook():
         "stop_loss_response": stop_loss_response if liquidation_price else None,
         "AA_Position vor Order": position_value_before_order,
         "AA_verfügbares Guthaben vor Order": verfuegbares_Guthaben_vor_Order,
+        "AA_TOTAL": Total,
         "AA_Ergebnis": Ergebnis,
         "logs": logs
     })
