@@ -412,9 +412,9 @@ def webhook():
 
         if available_usdt is not None and pyramiding > 0:
         # Neue Berechnung der Ordergröße:
-        berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
-        usdt_amount = max(berechnet, 0)
-        logs.append(f"Neue Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
+            berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
+            usdt_amount = max(berechnet, 0)
+            logs.append(f"Neue Ordergröße berechnet: ((Position {position_value_usdt} + Guthaben {available_usdt} - Sicherheit {sicherheit}) / Pyramiding {pyramiding}) = {usdt_amount}")
 
     except Exception as e:
         logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
