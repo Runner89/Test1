@@ -401,6 +401,14 @@ def webhook():
                 logs.append(f"Positionswert (USDT): {position_value_usdt}")
                 break
 
+        open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
+
+
         # Ordergröße berechnen (ohne Firebase)
         if available_usdt is not None and pyramiding > 0:
             berechnet = (position_value_usdt + available_usdt - sicherheit) / pyramiding
