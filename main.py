@@ -85,7 +85,7 @@ def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="
     }
 
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
+    signature = generate_signature(secret_key, params)
     params_dict["signature"] = signature
 
     url = f"{BASE_URL}{ORDER_ENDPOINT}"
