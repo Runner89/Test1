@@ -50,7 +50,7 @@ def generate_signature(secret_key: str, params: str) -> str:
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
     params = f"timestamp={timestamp}"
-    signature = generate_signature(secret_key, params)
+    signature = generate_signature(secret_key, query_string)
     url = f"{BASE_URL}{BALANCE_ENDPOINT}?{params}&signature={signature}"
     headers = {"X-BX-APIKEY": api_key}
     response = requests.get(url, headers=headers)
