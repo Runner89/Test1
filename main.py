@@ -355,7 +355,9 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    AAA = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
+    
+    
+    position_value_before_order = get_current_position(api_key, secret_key, symbol, position_side, logs)[3]
 
 
     if not api_key or not secret_key:
@@ -593,7 +595,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "AA_Position:": AA,
+        "position_value_before_order": position_value_before_order,
         "logs": logs
     })
 
