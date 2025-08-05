@@ -384,87 +384,95 @@ def webhook():
     except Exception as e:
         logs.append(f"Fehler bei Orderprüfung: {e}")
 
-
-    # Wir setzen usdt_amount hier erst mal 0, denn die Market-Order erfolgt später mit bereits_investierter_betrag
-    usdt_amount = 0
-
-    # 5. Positionsgröße und Liquidationspreis ermitteln & bereits investierten Betrag berechnen
+    # 3. Positionsgröße und Liquidationspreis ermitteln
     try:
         sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
-
-        if sell_quantity == 0:
-            # Falls keine aktuelle Position, evtl. Menge aus Order-Response (wird unten noch gesetzt)
-            pass
-
-        # Investierten Betrag berechnen
-        bereits_investierter_betrag = None
-        try:
-            for pos in positions_raw:
-                if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                    size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
-                    if avg_price > 0 and size > 0:
-                        bereits_investierter_betrag = round(avg_price * size, 2)
-                        logs.append(f"[Investiert] avgPrice: {avg_price}, Size: {size}, Investiert: {bereits_investierter_betrag} USD")
-                    break
-        except Exception as e:
-            logs.append(f"Fehler bei der Berechnung des investierten Betrags: {e}")
-
-        # Liquidationspreis -> Stop-Loss-Preis berechnen
-        if liquidation_price:
-            stop_loss_price = round(liquidation_price * 1.02, 6)
-            logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
-        else:
-            stop_loss_price = None
-            logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
-
     except Exception as e:
         sell_quantity = 0
-        stop_loss_price = None
-        bereits_investierter_betrag = None
+        liquidation_price = None
+        positions_raw = []
         logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
 
-    # Jetzt die Market-Order mit bereits_investierter_betrag ausführen
-    order_response = None
-    if bereits_investierter_betrag and bereits_investierter_betrag > 0:
+    # ✅ Investierten Betrag berechnen
+    bereits_investierter_betrag = None
+    try:
+        for pos in positions_raw:
+            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                size = float(pos.get("size", 0)) or float(pos.get("positionAmt", 0))
+                if avg_price > 0 and size > 0:
+                    bereits_investierter_betrag = round(avg_price * size, 2)
+                    logs.append(f"[Investiert] avgPrice: {avg_price}, Size: {size}, Investiert: {bereits_investierter_betrag} USD")
+                break
+    except Exception as e:
+        logs.append(f"Fehler bei der Berechnung des investierten Betrags: {e}")
+
+    # 4. Ordergröße für Market-Order bestimmen (nutze bereits investierten Betrag)
+    usdt_amount = 0
+    if bereits_investierter_betrag is None or bereits_investierter_betrag == 0:
+        if available_usdt is not None and pyramiding > 0:
+            usdt_amount = max((available_usdt - sicherheit) * pyramiding, 0)
+            logs.append(f"Keine offene Position. Neue Ordergröße basierend auf verfügbarem Guthaben und Hebel: {usdt_amount}")
+    else:
         usdt_amount = bereits_investierter_betrag
-        logs.append(f"Plaziere Market-Order mit bereits investiertem Betrag {usdt_amount} USD für {symbol} ({position_side})...")
-        order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+        logs.append(f"Offene Position gefunden. Verwende bereits investierten Betrag als Ordergröße: {usdt_amount}")
+
+    # Market-Order Menge berechnen
+    quantity = 0
+    try:
+        avg_price_for_order = None
+        for pos in positions_raw:
+            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                avg_price_for_order = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                break
+        if avg_price_for_order and usdt_amount > 0:
+            quantity = round(usdt_amount / avg_price_for_order, 6)
+            logs.append(f"Market-Order Menge berechnet: {quantity} (usdt_amount: {usdt_amount}, avg_price: {avg_price_for_order})")
+    except Exception as e:
+        logs.append(f"Fehler bei Berechnung der Market-Order-Menge: {e}")
+
+    # 5. Market-Order ausführen, wenn Menge > 0
+    order_response = {}
+    if quantity > 0:
+        logs.append(f"Plaziere Market-Order mit Menge {quantity} für {symbol} ({position_side})...")
+        order_response = place_market_order(api_key, secret_key, symbol, quantity, position_side)
         time.sleep(2)
         logs.append(f"Market-Order Antwort: {order_response}")
     else:
-        logs.append("Kein bereits investierter Betrag vorhanden – keine Market-Order ausgeführt.")
-        order_response = {}
+        logs.append("Keine gültige Menge für Market-Order berechnet. Keine Order platziert.")
 
-    # Falls Market-Order ausgeführt wurde, sell_quantity aus order_response ggf. setzen
-    try:
-        if sell_quantity == 0 and order_response:
-            executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
-            if executed_qty_str:
-                sell_quantity = float(executed_qty_str)
-                logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
-    except Exception as e:
-        logs.append(f"Fehler beim Auslesen der ausgeführten Menge: {e}")
+    # 6. Stop-Loss Preis berechnen (basierend auf Liquidationspreis)
+    if liquidation_price:
+        stop_loss_price = round(liquidation_price * 1.02, 6)
+        logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
+    else:
+        stop_loss_price = None
+        logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
 
-    # 6. Kaufpreise ggf. löschen (Firebase-Logik, optional, kann bleiben falls du kaufpreise nutzt)
+    # 7. Kaufpreise ggf. löschen, speichern usw.
     if firebase_secret:
         try:
-            logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
+            open_sell_orders_exist = False
+            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                for order in open_orders.get("data", {}).get("orders", []):
+                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                        open_sell_orders_exist = True
+                        break
+            if not open_sell_orders_exist:
+                logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
 
-    # 7. Kaufpreis speichern
-    if firebase_secret and price_from_webhook:
-        try:
-            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+        if price_from_webhook:
+            try:
+                logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
+            except Exception as e:
+                logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
 
-    # 8. Durchschnittspreis bestimmen – zuerst aus Firebase, sonst avgPrice von BingX
+    # 8. Durchschnittspreis bestimmen
     durchschnittspreis = None
     kaufpreise = []
 
-    # 1. Versuch: Firebase lesen
     try:
         if firebase_secret:
             kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
@@ -476,7 +484,6 @@ def webhook():
     except Exception as e:
         logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
 
-    # 2. Fallback: avgPrice aus BingX-Position, wenn Firebase-Durchschnitt fehlt oder Fehler
     if not durchschnittspreis or durchschnittspreis == 0:
         try:
             for pos in positions_raw:
@@ -562,16 +569,13 @@ def webhook():
         "symbol": symbol,
         "usdt_amount": usdt_amount,
         "sell_quantity": sell_quantity,
+        "stop_loss_price": stop_loss_price,
+        "stop_loss_response": stop_loss_response,
         "price_from_webhook": price_from_webhook,
         "sell_percentage": sell_percentage,
-        "firebase_average_price": durchschnittspreis,
-        "firebase_all_prices": kaufpreise,
         "usdt_balance_before_order": available_usdt,
-        "stop_loss_price": stop_loss_price if liquidation_price else None,
-        "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "used_usd_amount": bereits_investierter_betrag,
-        "logs": logs
+        "logs": logs,
     })
-
+    
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
