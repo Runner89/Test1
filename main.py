@@ -588,13 +588,9 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
-    # Letzte Kauforder abrufen
-    last_buy_order = None
-    try:
-        last_buy_order = get_last_buy_order(api_key, secret_key, symbol, position_side)
-        logs.append(f"Letzte Kauforder: {last_buy_order}")
-    except Exception as e:
-        logs.append(f"Fehler beim Abrufen der letzten Kauforder: {e}")
+
+    last_buy_order, logs_from_last_order = get_last_buy_order(api_key, secret_key, symbol, position_side)
+    logs.extend(logs_from_last_order)  # logs von get_last_buy_order anhängen
 
     return jsonify({
         "error": False,
