@@ -44,10 +44,8 @@ FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-def generate_signature(secret_key: str, params: dict) -> str:
-    sorted_params = sorted(params.items())  # Alphabetisch sortieren
-    query_string = urllib.parse.urlencode(sorted_params)  # URL-kodieren
-    return hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+def generate_signature(secret_key: str, params: str) -> str:
+    return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
@@ -66,6 +64,27 @@ def get_current_price(symbol: str):
         return float(data["data"]["price"])
     else:
         return None
+def get_user_fills(api_key, secret_key, symbol, limit=20):
+    endpoint = "/openApi/swap/v2/user/fills"
+    timestamp = int(time.time() * 1000)
+
+    params = {
+        "symbol": symbol,
+        "limit": limit,
+        "timestamp": timestamp
+    }
+
+    query_string = "&".join(f"{k}={params[k]}" for k in sorted(params))
+    signature = generate_signature(secret_key, query_string)
+
+    url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
+    headers = {"X-BX-APIKEY": api_key}
+
+    response = requests.get(url, headers=headers)
+    try:
+        return response.json()
+    except Exception as e:
+        return {"error": str(e), "raw": response.text}
 
 def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG"):
     price = get_current_price(symbol)
@@ -85,7 +104,7 @@ def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="
     }
 
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, params)
+    signature = generate_signature(secret_key, query_string)
     params_dict["signature"] = signature
 
     url = f"{BASE_URL}{ORDER_ENDPOINT}"
@@ -124,26 +143,28 @@ def place_stop_loss_order(api_key, secret_key, symbol, quantity, stop_price, pos
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
 
-def send_signed_request(http_method, endpoint, api_key, secret_key, params):
-    base_url = "https://open-api.bingx.com"
-    
-    # Zeitstempel hinzufügen
-    params["timestamp"] = str(int(time.time() * 1000))
-    
-    # Signatur generieren
-    signature = generate_signature(secret_key, params)
-    params["signature"] = signature
-    
-    headers = {
-        "X-BX-APIKEY": api_key
-    }
+def send_signed_request(http_method, endpoint, api_key, secret_key, params=None):
+    if params is None:
+        params = {}
+
+    timestamp = int(time.time() * 1000)
+    params['timestamp'] = timestamp
+
+    query_string = "&".join(f"{k}={params[k]}" for k in sorted(params))
+    signature = hmac.new(secret_key.encode(), query_string.encode(), hashlib.sha256).hexdigest()
+    params['signature'] = signature
+
+    url = f"{BASE_URL}{endpoint}"
+    headers = {"X-BX-APIKEY": api_key}
 
     if http_method == "GET":
-        response = requests.get(base_url + endpoint, headers=headers, params=params)
+        response = requests.get(url, headers=headers, params=params)
     elif http_method == "POST":
-        response = requests.post(base_url + endpoint, headers=headers, json=params)
+        response = requests.post(url, headers=headers, json=params)
+    elif http_method == "DELETE":
+        response = requests.delete(url, headers=headers, params=params)
     else:
-        raise ValueError("HTTP-Methode nicht unterstützt")
+        raise ValueError("Unsupported HTTP method")
 
     return response.json()
 
@@ -331,15 +352,6 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
         "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
-
-def get_trade_history(api_key, secret_key, symbol, position_side="LONG", limit=10):
-    endpoint = "/openApi/swap/v2/trade/allFillOrders"
-    params = {
-        "symbol": symbol,
-        "positionSide": position_side.upper(),
-        "limit": limit,
-    }
-    return send_signed_request("GET", endpoint, api_key, secret_key, params)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -552,21 +564,8 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
+    trades = get_user_fills(api_key, secret_key, symbol="BABY-USDT", limit=10)
 
-
-    trades = []
-    try:
-        trades_response = get_trade_history(api_key, secret_key, symbol)
-        if trades_response.get("code") == 0:
-            trades = trades_response.get("data", [])
-        else:
-            logs.append(f"Trade history Fehler: {trades_response.get('msg')}")
-    except Exception as e:
-        logs.append(f"Exception bei trades: {e}")
-
-    trades = []
-
-   
 
     return jsonify({
         "error": False,
@@ -582,7 +581,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "trades": trades,
+        "Tradesx: trades,
         "logs": logs
     })
 
