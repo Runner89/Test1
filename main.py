@@ -57,25 +57,6 @@ def get_futures_balance(api_key: str, secret_key: str):
     response = requests.get(url, headers=headers)
     return response.json()
 
-def get_position_value_for_symbol(api_key, secret_key, symbol: str):
-    try:
-        positions_response = get_futures_positions(api_key, secret_key)
-        if positions_response.get("code") == 0:
-            positions = positions_response.get("data", [])
-            for pos in positions:
-                if pos.get("symbol") == symbol:
-                    position_value = float(pos.get("positionValue", 0))
-                    logs.append(f"Gefundene Position für {symbol}: {pos}")
-                    logs.append(f"Positionswert (USDT) für {symbol}: {position_value}")
-                    return position_value
-            logs.append(f"Keine offene Position für {symbol} gefunden.")
-            return 0
-        else:
-            logs.append(f"Fehler beim Abrufen der Positionen: {positions_response.get('msg')}")
-            return None
-    except Exception as e:
-        logs.append(f"Fehler bei Positions-Abfrage: {e}")
-        return None
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -181,6 +162,21 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
 
     position_size = 0
     liquidation_price = None
+    position_value = 0  # Hier speichern wir die Positionsgröße in USDT
+
+    for pos in raw_positions:
+        # Filtere nach symbol und position_side (z.B. LONG oder SHORT)
+        if pos.get("symbol") == symbol and pos.get("positionSide") == position_side:
+            position_size = float(pos.get("positionAmt", 0))
+            liquidation_price = pos.get("liquidationPrice")
+            position_value = float(pos.get("positionValue", 0))
+            if logs is not None:
+                logs.append(f"Gefundene Position: {pos}")
+                logs.append(f"Position size: {position_size}, Liquidation price: {liquidation_price}")
+                logs.append(f"Positionswert (USDT): {position_value}")
+            break
+
+    return position_size, liquidation_price, position_value
 
     if response.get("code") == 0:
         for pos in positions:
@@ -603,8 +599,8 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
-        "logs": logs,
-        "AA_Position_Value": position_value         
+        "AAA_position_size": position_size,  # Hier ergänzt
+        "logs": logs 
     })
 
 
