@@ -555,14 +555,18 @@ def webhook():
 
 
     trades = []
+    try:
+        trades_response = get_trade_history(api_key, secret_key, symbol)
+        if trades_response.get("code") == 0:
+            trades = trades_response.get("data", [])
+        else:
+            logs.append(f"Trade history Fehler: {trades_response.get('msg')}")
+    except Exception as e:
+        logs.append(f"Exception bei trades: {e}")
 
-    trades_response = get_trade_history(api_key, secret_key, "BABY-USDT", "LONG", limit=5)
-    if trades_response.get("code") == 0:
-        trades = trades_response.get("data", [])
-        for trade in trades:
-            print(f"TradeID: {trade['tradeId']}, Menge: {trade['quantity']}, Preis: {trade['price']}, Zeit: {trade['time']}")
-    else:
-        print("Fehler beim Abrufen der Trade History:", trades_response.get("msg"))
+    trades = []
+
+   
 
     return jsonify({
         "error": False,
