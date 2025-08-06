@@ -7,7 +7,7 @@ import requests
 app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
-FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders"  # ✅ Richtig: gefüllte Orders
+FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders"
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 
 def generate_signature(secret_key: str, query_string: str) -> str:
@@ -54,29 +54,38 @@ def webhook():
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
-    # 📥 Parameter für allFillOrders
+    # 📅 Zeitraum: Letzter Monat (30 Tage)
     now = int(time.time() * 1000)
+    one_month_ms = 30 * 24 * 60 * 60 * 1000  # 30 Tage in Millisekunden
+
     params = {
         "symbol": symbol,
-        "limit": "50",  # Bis zu 50 Orders
-        "startTime": str(now - 2592000000),  # Letzte 24 Stunden
+        "limit": "50",  # Max. 50 Einträge
+        "startTime": str(now - one_month_ms),
         "endTime": str(now)
     }
 
-    # Anfrage senden
+    # 📦 Gefillte Orders abrufen
     fill_orders = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Code: {fill_orders.get('code')}, Message: {fill_orders.get('msg')}")
     logs.append(f"Fill Orders Full Response: {fill_orders}")
 
-    # Aktuellen Preis abrufen
+    # 📈 Aktuellen Preis abrufen
     current_price = get_current_price(symbol)
     if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
-    # Orders sortieren (absteigend nach Zeit)
-    orders = fill_orders.get("data", [])
-    logs.append(f"Beispiel-Order: {orders[0] if orders else 'Keine'}")
-    orders_sorted = sorted(orders, key=lambda x: x.get("time", 0), reverse=True)
+    # 📋 Gefillte Orders sortieren (nach Zeit, absteigend)
+    orders_raw = fill_orders.get("data", [])
+
+    if isinstance(orders_raw, list):
+        orders_sorted = sorted(orders_raw, key=lambda x: x.get("time", 0), reverse=True)
+        beispiel_order = orders_sorted[0] if orders_sorted else "Keine"
+    else:
+        orders_sorted = []
+        beispiel_order = "Datenformat ungültig"
+
+    logs.append(f"Beispiel-Order: {beispiel_order}")
 
     return jsonify({
         "error": False,
