@@ -433,7 +433,7 @@ def webhook():
     
         except Exception as e:
             logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
-            sende_telegram_nachricht(f"❌ Ausnahmefehler bei Ordergrößenberechnung für {base_asset}: 
+            sende_telegram_nachricht(f"❌ Ausnahmefehler bei Ordergrößenberechnung für {base_asset}: {e}")
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
