@@ -60,27 +60,26 @@ def webhook():
     start_of_yesterday = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999000)
 
-    start_time = int(start_of_yesterday.timestamp() * 1000)
-    end_time = int(end_of_today.timestamp() * 1000)
+    start_time_ms = int(start_of_yesterday.timestamp() * 1000)
+    end_time_ms = int(end_of_today.timestamp() * 1000)
 
-    params = {
+    # Beispiel: hier müsstest du fill_orders_response über deine API erhalten
+    fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, {
         "symbol": symbol,
         "limit": "50",
-        "startTime": str(start_time),
-        "endTime": str(end_time)
-    }
-
-    fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
+        "startTime": str(start_time_ms),
+        "endTime": str(end_time_ms)
+    })
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
     raw_orders = fill_orders_response.get("data", {})
-
     if isinstance(raw_orders, dict) and "orders" in raw_orders:
         orders = raw_orders["orders"]
     else:
-        logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
+        logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format.")
         orders = []
 
+    # Erster Filter: positionSide, status, side
     filtered_orders = [
         o for o in orders
         if o.get("positionSide") == "LONG"
@@ -88,8 +87,18 @@ def webhook():
         and o.get("side") == "BUY"
     ]
 
-    sorted_orders = sorted(filtered_orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
+    # Zweiter Filter: updateTime im gewünschten Zeitraum
+    filtered_orders_time = []
+    for order in filtered_orders:
+        update_time_ms = order.get('updateTime')
+        if update_time_ms and start_time_ms <= update_time_ms <= end_time_ms:
+            order['updateTimeReadable'] = datetime.utcfromtimestamp(update_time_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
+            filtered_orders_time.append(order)
 
+    # Sortierung auf dem finalen Ergebnis
+    sorted_orders = sorted(filtered_orders_time, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
+
+    # Berechnung order_size_usdt für die finalen Orders
     for order in sorted_orders:
         try:
             executed_qty = float(order.get("executedQty", 0))
@@ -98,20 +107,7 @@ def webhook():
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
 
-    # Optional: nochmal lokal filtern nach start/end, falls API zu viele zurückgibt
-    sorted_orders = [o for o in sorted_orders if start_time <= int(o.get("updateTime", 0)) <= end_time]
-
-    logs.append(f"Gefilterte Orders (LONG + FILLED, heute + gestern): {len(sorted_orders)}")
-
-    current_price = get_current_price(symbol)
-    if current_price:
-        logs.append(f"Aktueller Preis für {symbol}: {current_price}")
-
-    return jsonify({
-        "error": False,
-        "long_filled_orders": sorted_orders,
-        "logs": logs
-    })
-
+    return jsonify({"orders": sorted_orders})
+    
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
