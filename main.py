@@ -95,16 +95,17 @@ def webhook():
             order["order_size_usdt"] = round(executed_qty * avg_price, 4)
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
-
-    # ✨ UTC Zeit
-    timestamp_ms = int(order.get("updateTime", 0))
-    utc_time = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-    order["updateTime_readable"] = utc_time.strftime('%Y-%m-%d %H:%M:%S UTC')
-
-        # 🕒 Lokale Zeit (z. B. Berlin: UTC+2 im Sommer)
-    berlin_time = utc_time + timedelta(hours=2)
-    order["updateTime_readable_local"] = berlin_time.strftime('%Y-%m-%d %H:%M:%S')
-
+    
+        # ✨ UTC & lokale Zeit in jeder Schleife berechnen
+        try:
+            timestamp_ms = int(order.get("updateTime", 0))
+            utc_time = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+            order["updateTime_readable"] = utc_time.strftime('%Y-%m-%d %H:%M:%S UTC')
+            berlin_time = utc_time + timedelta(hours=2)
+            order["updateTime_readable_local"] = berlin_time.strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            order["updateTime_readable"] = None
+            order["updateTime_readable_local"] = None
     logs.append(f"Gefilterte Orders (LONG + FILLED): {len(sorted_orders)}")
 
     current_price = get_current_price(symbol)
