@@ -48,6 +48,51 @@ def get_current_price(symbol: str):
     if data.get("code") == 0 and "data" in data and "price" in data["data"]:
         return float(data["data"]["price"])
     return None
+
+def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookback_hours=72):
+    now = int(time.time() * 1000)
+    hour_ms = 60 * 60 * 1000
+    interval = 12 * hour_ms  # In 12-Stunden-Schritten rückwärts gehen
+
+    for i in range(0, lookback_hours, 12):
+        end_time = now - (i * hour_ms)
+        start_time = end_time - interval
+
+        params = {
+            "symbol": symbol,
+            "limit": "50",
+            "startTime": str(start_time),
+            "endTime": str(end_time)
+        }
+
+        response = send_signed_get(api_key, secret_key, "/openApi/swap/v2/trade/allFillOrders", params)
+        orders = response.get("data", [])
+
+        for order in sorted(orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True):
+            if (
+                order.get("positionSide") == "LONG" and
+                order.get("status") == "FILLED" and
+                order.get("side") == "BUY"
+            ):
+                # order_size_usdt berechnen
+                try:
+                    executed_qty = float(order.get("executedQty", 0))
+                    avg_price = float(order.get("avgPrice", 0))
+                    order["order_size_usdt"] = round(executed_qty * avg_price, 4)
+                except (ValueError, TypeError):
+                    order["order_size_usdt"] = None
+
+                # updateTime in lesbares Format umwandeln
+                try:
+                    ts = int(order.get("updateTime", 0))
+                    dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+                    order["updateTime_readable"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                except Exception:
+                    order["updateTime_readable"] = "unbekannt"
+
+                return order
+
+    return None
     
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -61,69 +106,12 @@ def webhook():
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
-    params = {
-        "symbol": symbol,
-        "limit": "400"  # API Limit, das wir trotzdem lokal weiter filtern
-    }
+    latest_order = get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookback_hours=72)
 
-    fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
-    logs.append(f"Fill Orders Full Response: {fill_orders_response}")
-
-    raw_orders = fill_orders_response.get("data", {})
-    if isinstance(raw_orders, dict) and "orders" in raw_orders:
-        orders = raw_orders["orders"]
+    if latest_order:
+        logs.append("Jüngste LONG + BUY + FILLED Order gefunden.")
     else:
-        logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
-        orders = []
-
-    # Hilfsfunktion: Timestamp (ms) zu datetime konvertieren
-    def timestamp_to_datetime(ts):
-        return datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)
-
-    today = datetime.now(timezone.utc).date()
-    yesterday = today - timedelta(days=1)
-
-    # Filter auf Orders von gestern und heute
-    orders_from_yesterday_and_today = []
-    for order in orders:
-        update_time = order.get("updateTime")
-        if update_time is None:
-            continue
-        dt = timestamp_to_datetime(update_time)
-        if dt.date() == today or dt.date() == yesterday:
-            orders_from_yesterday_and_today.append(order)
-
-    # Filter: Nur LONG + FILLED + BUY Positionen
-    filtered_orders = [
-        o for o in orders_from_yesterday_and_today
-        if o.get("positionSide") == "LONG"
-        and o.get("status") == "FILLED"
-        and o.get("side") == "BUY"
-    ]
-
-    # Sortieren nach updateTime (neueste zuerst)
-    sorted_orders = sorted(filtered_orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
-
-    # Limit auf 50 Ergebnisse
-    sorted_orders = sorted_orders[:50]
-
-    # Berechne order_size_usdt für jede Order
-    for order in sorted_orders:
-        try:
-            executed_qty = float(order.get("executedQty", 0))
-            avg_price = float(order.get("avgPrice", 0))
-            order["order_size_usdt"] = round(executed_qty * avg_price, 4)
-        except (ValueError, TypeError):
-            order["order_size_usdt"] = None
-        
-        # updateTime in lesbares Format wandeln
-        try:
-            ts = int(order.get("updateTime", 0))
-            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-            order["updateTime_readable"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-        except Exception:
-            order["updateTime_readable"] = "unbekannt"
-    logs.append(f"Gefilterte Orders (LONG + FILLED) von gestern und heute: {len(sorted_orders)}")
+        logs.append("Keine passende Order gefunden.")
 
     current_price = get_current_price(symbol)
     if current_price:
@@ -131,7 +119,7 @@ def webhook():
 
     return jsonify({
         "error": False,
-        "long_filled_orders": sorted_orders,
+        "latest_long_buy_filled_order": latest_order,
         "logs": logs
     })
 
