@@ -91,3 +91,7 @@ def webhook():
         "last_fill_orders": orders_sorted,
         "logs": logs
     })
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
