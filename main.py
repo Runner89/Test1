@@ -67,23 +67,35 @@ def webhook():
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
+    # Debug Response-Code & Nachricht
+    logs.append(f"Response Code: {fill_orders_response.get('code')}")
+    logs.append(f"Response Msg: {fill_orders_response.get('msg')}")
+
     orders = fill_orders_response.get("data", [])
 
-    if orders and all(isinstance(o, dict) for o in orders):
-        logs.append(f"Unsortierte Orders (updateTime): {[o.get('updateTime') for o in orders]}")
+    logs.append(f"Orders-Typ: {type(orders)}")
+    if isinstance(orders, list):
+        logs.append(f"Erste 3 Orders und deren Typen: {[(o, type(o)) for o in orders[:3]]}")
 
-        orders_sorted = sorted(
-            orders,
-            key=lambda o: int(o.get("updateTime", 0)) if o.get("updateTime") is not None else 0,
-            reverse=True
-        )
-        logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
+        if all(isinstance(o, dict) for o in orders):
+            logs.append(f"Unsortierte Orders (updateTime): {[o.get('updateTime') for o in orders]}")
+
+            orders_sorted = sorted(
+                orders,
+                key=lambda o: int(o.get("updateTime", 0)) if o.get("updateTime") is not None else 0,
+                reverse=True
+            )
+            logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
+        else:
+            logs.append("Warnung: Nicht alle Orders sind Dicts, Sortierung übersprungen.")
+            orders_sorted = orders
     else:
+        logs.append(f"Orders-Inhalt: {orders}")
         logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
-        orders_sorted = orders  # Rückfall: nicht sortieren
+        orders_sorted = orders
 
     current_price = get_current_price(symbol)
-    if current_price:
+    if current_price is not None:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
     return jsonify({
@@ -91,7 +103,6 @@ def webhook():
         "last_fill_orders": orders_sorted,
         "logs": logs
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
