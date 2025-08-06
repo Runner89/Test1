@@ -44,7 +44,7 @@ FIREBASE_URL = os.environ.get("FIREBASE_URL", "")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-saved_usdt_amount = None  # Neue Variable zum Speichern der Ordergrö
+saved_usdt_amounts = {}  # globales Dict für alle Coins
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -336,8 +336,13 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    global saved_usdt_amounts
     data = request.json
     logs = []
+    base_asset = data.get("symbol", "BTC-USDT").split("-")[0]
+
+     # Hole den gespeicherten Wert für den Coin, falls vorhanden
+    saved_usdt_amount = saved_usdt_amounts.get(base_asset)
 
     # Eingabewerte
     pyramiding = float(data.get("pyramiding", 1))
@@ -401,26 +406,30 @@ def webhook():
                         open_sell_orders_exist = True
                         break
         
-            # Wenn saved_usdt_amount leer oder 0, dann aus Firebase lesen
-            if not saved_usdt_amount or saved_usdt_amount == 0:
-                usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
-                saved_usdt_amount = usdt_amount
-                logs.append(f"Ordergröße aus Firebase gelesen: {usdt_amount}")
-            else:
-                usdt_amount = saved_usdt_amount
-                logs.append(f"Verwende gespeicherte Ordergröße aus Variable: {usdt_amount}")
-        
             # Falls keine offene Sell-Limit-Order existiert, neu berechnen und speichern
             if not open_sell_orders_exist:
                 logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
                 if available_usdt is not None and pyramiding > 0:
                     usdt_amount = max((available_usdt - sicherheit) / pyramiding, 0)
-                    saved_usdt_amount = usdt_amount
+                    saved_usdt_amounts[base_asset] = usdt_amount  # Dict aktualisieren
                     logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
                     logs.append(firebase_speichere_ordergroesse(base_asset, usdt_amount, firebase_secret))
-
+            else:
+                # Sonst gespeicherte Ordergröße holen
+                saved_usdt_amount = saved_usdt_amounts.get(base_asset, 0)
+        
+                # Wenn saved_usdt_amount leer oder 0, dann aus Firebase lesen
+                if not saved_usdt_amount or saved_usdt_amount == 0:
+                    usdt_amount = firebase_lese_ordergroesse(base_asset, firebase_secret) or 0
+                    saved_usdt_amounts[base_asset] = usdt_amount
+                    logs.append(f"Ordergröße aus Firebase für {base_asset} gelesen: {usdt_amount}")
+                else:
+                    usdt_amount = saved_usdt_amount
+                    logs.append(f"Verwende gespeicherte Ordergröße aus Dict für {base_asset}: {usdt_amount}")
+        
         except Exception as e:
             logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
+
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
