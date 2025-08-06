@@ -70,9 +70,15 @@ def webhook():
 
     # Daten extrahieren
     orders = fill_orders_response.get("data", [])
+    logs.append(f"Unsortierte Orders (updateTime): {[o.get('updateTime') for o in orders]}")
 
-    # Nach updateTime absteigend sortieren
-    orders_sorted = sorted(orders, key=lambda o: o.get("updateTime", 0), reverse=True)
+    # Sortieren, dabei sicherstellen, dass updateTime als int behandelt wird
+    orders_sorted = sorted(
+        orders,
+        key=lambda o: int(o.get("updateTime", 0)) if o.get("updateTime") is not None else 0,
+        reverse=True
+    )
+    logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
 
     current_price = get_current_price(symbol)
     if current_price:
