@@ -49,10 +49,7 @@ def get_current_price(symbol: str):
         return float(data["data"]["price"])
     return None
 
-def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookback_hours=72, logs=None):
-    if logs is None:
-        logs = []
-
+def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookback_hours=72):
     now = int(time.time() * 1000)
     hour_ms = 60 * 60 * 1000
     interval = 12 * hour_ms
@@ -69,9 +66,9 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
         }
 
         response = send_signed_get(api_key, secret_key, "/openApi/swap/v2/trade/allFillOrders", params)
-        logs.append(f"API Antwort für Intervall {datetime.fromtimestamp(start_time/1000)} bis {datetime.fromtimestamp(end_time/1000)}: {response}")
-
         data = response.get("data", {})
+
+        # Sicherstellen, dass orders eine Liste von Dicts ist
         if isinstance(data, dict) and "orders" in data:
             orders = data["orders"]
         elif isinstance(data, list):
@@ -79,10 +76,9 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
         else:
             orders = []
 
+        # Falls orders unerwartete Form haben, leer machen
         if not isinstance(orders, list):
             orders = []
-
-        logs.append(f"Gefundene Orders in diesem Intervall: {len(orders)}")
 
         for order in sorted(orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True):
             if (
@@ -104,11 +100,9 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
                 except Exception:
                     order["updateTime_readable"] = "unbekannt"
 
-                logs.append("Passende Order gefunden und zurückgegeben.")
-                return order, logs
+                return order
 
-    logs.append("Keine passende Order gefunden nach Durchlaufen aller Intervalle.")
-    return None, logs
+    return None
     
 @app.route('/webhook', methods=['POST'])
 def webhook():
