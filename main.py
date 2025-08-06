@@ -140,17 +140,12 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
     return position_size, raw_positions, liquidation_price
 
 
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
     logs = []
-    
-    # Letzte 2 ausgeführte Orders abrufen
-    fill_orders = get_last_fill_orders(api_key, secret_key, symbol, limit=2)
-    logs.append(f"Letzte 2 Fill Orders: {fill_orders}")
 
-    # Eingabewerte
+    # Eingabewerte zuerst auslesen!
     pyramiding = float(data.get("pyramiding", 1))
     sicherheit = float(data.get("sicherheit", 0))
     sell_percentage = data.get("sell_percentage")
@@ -164,15 +159,16 @@ def webhook():
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
 
-    base_asset = symbol.split("-")[0]
-    available_usdt = 0.0
+    # Jetzt erst auf API-Key etc. zugreifen
+    fill_orders = get_last_fill_orders(api_key, secret_key, symbol, limit=2)
+    logs.append(f"Letzte 2 Fill Orders: {fill_orders}")
 
- 
     return jsonify({
         "error": False,
-        "last_fill_orders": fill_orders,
-        "logs": logs
+        "logs": logs,
+        "last_fill_orders": fill_orders
     })
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
