@@ -151,7 +151,7 @@ def webhook():
     sell_percentage = data.get("sell_percentage")
     api_key = data.get("api_key")
     secret_key = data.get("secret_key")
-    symbol = data.get("symbol", IDOL-USDT")
+    symbol = data.get("symbol", "IDOL-USDT")
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
