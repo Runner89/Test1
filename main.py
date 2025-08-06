@@ -105,14 +105,14 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
     return position_size, raw_positions, liquidation_price
 
 # Abruf der letzten ausgeführten Fill Orders
-def get_last_fill_orders(api_key, secret_key, symbol, limit=10):
+def get_last_fill_orders(api_key, secret_key, symbol, limit=2):
     endpoint = FILL_ORDERS_ENDPOINT
     params = {
         "symbol": symbol,
         "limit": limit
     }
     response = send_signed_request("GET", endpoint, api_key, secret_key, params)
-    return response.get("data", []) if response.get("code") == 0 else []
+    return response  # <--- gib das ganze Response-Objekt zurück
 
 # Webhook-Endpunkt
 @app.route('/webhook', methods=['POST'])
@@ -135,8 +135,9 @@ def webhook():
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
 
     # Letzte 2 Fill Orders abrufen
-    fill_orders = get_last_fill_orders(api_key, secret_key, symbol, limit=2)
-    logs.append(f"Letzte 2 Fill Orders: {fill_orders}")
+    response_raw = get_last_fill_orders(api_key, secret_key, symbol, limit=2)
+    logs.append(f"Fill Orders Full Response: {response_raw}")
+    fill_orders = response_raw.get("data", [])
 
     # Beispiel: Aktuellen Preis abrufen und loggen
     current_price = get_current_price(symbol)
