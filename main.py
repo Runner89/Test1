@@ -115,7 +115,14 @@ def webhook():
             order["order_size_usdt"] = round(executed_qty * avg_price, 4)
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
-
+        
+        # updateTime in lesbares Format wandeln
+        try:
+            ts = int(order.get("updateTime", 0))
+            dt = datetime.utcfromtimestamp(ts / 1000)  # ms zu s
+            order["updateTime_readable"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+        except Exception:
+            order["updateTime_readable"] = "unbekannt"
     logs.append(f"Gefilterte Orders (LONG + FILLED) von gestern und heute: {len(sorted_orders)}")
 
     current_price = get_current_price(symbol)
