@@ -7,15 +7,15 @@ import requests
 app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
-FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allOrders" #"/openApi/swap/v2/trade/allFillOrders"
+FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders"  # ✅ Richtig: gefüllte Orders
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 
 def generate_signature(secret_key: str, query_string: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def send_signed_get(api_key, secret_key, endpoint, params):
-    # Timestamp & recvWindow anhängen
-    params["timestamp"] = str(int(time.time() * 1000))
+    now = int(time.time() * 1000)
+    params["timestamp"] = str(now)
     params["recvWindow"] = "5000"
 
     # Alphabetisch sortieren und Query-String bauen
@@ -55,22 +55,32 @@ def webhook():
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
     # 📥 Parameter für allFillOrders
+    now = int(time.time() * 1000)
     params = {
         "symbol": symbol,
-        "limit": "20"
+        "limit": "50",  # Bis zu 50 Orders
+        "startTime": str(now - 2592000000),  # Letzte 24 Stunden
+        "endTime": str(now)
     }
 
     # Anfrage senden
     fill_orders = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
+    logs.append(f"Fill Orders Code: {fill_orders.get('code')}, Message: {fill_orders.get('msg')}")
     logs.append(f"Fill Orders Full Response: {fill_orders}")
 
+    # Aktuellen Preis abrufen
     current_price = get_current_price(symbol)
     if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
+    # Orders sortieren (absteigend nach Zeit)
+    orders = fill_orders.get("data", [])
+    logs.append(f"Beispiel-Order: {orders[0] if orders else 'Keine'}")
+    orders_sorted = sorted(orders, key=lambda x: x.get("time", 0), reverse=True)
+
     return jsonify({
         "error": False,
-        "last_fill_orders": fill_orders.get("data", []),
+        "last_fill_orders": orders_sorted,
         "logs": logs
     })
 
