@@ -22,7 +22,6 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
-# Allgemeine Funktion zum Ausführen signierter Anfragen
 def send_signed_request(http_method, endpoint, api_key, secret_key, params=None):
     if params is None:
         params = {}
@@ -30,19 +29,22 @@ def send_signed_request(http_method, endpoint, api_key, secret_key, params=None)
     timestamp = int(time.time() * 1000)
     params['timestamp'] = timestamp
 
-    query_string = "&".join(f"{k}={params[k]}" for k in sorted(params))
-    signature = generate_signature(secret_key, query_string)
+    # Richtiges Encoding für Signatur
+    sorted_params = "&".join(f"{k}={params[k]}" for k in sorted(params))
+    signature = hmac.new(secret_key.encode(), sorted_params.encode(), hashlib.sha256).hexdigest()
     params['signature'] = signature
 
-    url = f"{BASE_URL}{endpoint}"
-    headers = {"X-BX-APIKEY": api_key}
+    headers = {
+        "X-BX-APIKEY": api_key
+    }
 
     if http_method == "GET":
-        response = requests.get(url, headers=headers, params=params)
+        # GET-Request: Signatur gehört in die Query
+        response = requests.get(f"{BASE_URL}{endpoint}", headers=headers, params=params)
     elif http_method == "POST":
-        response = requests.post(url, headers=headers, json=params)
+        response = requests.post(f"{BASE_URL}{endpoint}", headers=headers, json=params)
     elif http_method == "DELETE":
-        response = requests.delete(url, headers=headers, params=params)
+        response = requests.delete(f"{BASE_URL}{endpoint}", headers=headers, params=params)
     else:
         raise ValueError("Unsupported HTTP method")
 
