@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
-FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allOrders"  # Falls alle Orders, auch gefüllte, genutzt werden sollen
+FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders"  # Falls alle Orders, auch gefüllte, genutzt werden sollen
 TICKER_ENDPOINT = "https://contract.mexc.com/api/v1/contract/ticker"
 # Alternativ: "/openApi/swap/v2/trade/allFillOrders" wenn nur gefüllte Orders
 
