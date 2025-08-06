@@ -7,15 +7,15 @@ import requests
 app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
-FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders"
+FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allOrders"  # "/openApi/swap/v2/trade/allFillOrders"
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 
 def generate_signature(secret_key: str, query_string: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def send_signed_get(api_key, secret_key, endpoint, params):
-    now = int(time.time() * 1000)
-    params["timestamp"] = str(now)
+    # Timestamp & recvWindow anhängen
+    params["timestamp"] = str(int(time.time() * 1000))
     params["recvWindow"] = "5000"
 
     # Alphabetisch sortieren und Query-String bauen
@@ -54,42 +54,28 @@ def webhook():
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
-    # 📅 Zeitraum: Letzter Monat (30 Tage)
-    now = int(time.time() * 1000)
-    one_month_ms = 30 * 24 * 60 * 60 * 1000  # 30 Tage in Millisekunden
-
+    # 📥 Parameter für allFillOrders
     params = {
         "symbol": symbol,
-        "limit": "50",  # Max. 50 Einträge
-        "startTime": str(now - one_month_ms),
-        "endTime": str(now)
+        "limit": "50"
     }
 
-    # 📦 Gefillte Orders abrufen
+    # Anfrage senden
     fill_orders = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
-    logs.append(f"Fill Orders Code: {fill_orders.get('code')}, Message: {fill_orders.get('msg')}")
+
+    # Nach Timestamp absteigend sortieren
+    if "data" in fill_orders and isinstance(fill_orders["data"], list):
+        fill_orders["data"].sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
     logs.append(f"Fill Orders Full Response: {fill_orders}")
 
-    # 📈 Aktuellen Preis abrufen
     current_price = get_current_price(symbol)
     if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
-    # 📋 Gefillte Orders sortieren (nach Zeit, absteigend)
-    orders_raw = fill_orders.get("data", {}).get("fill_orders", [])
-
-    if isinstance(orders_raw, list):
-        orders_sorted = sorted(orders_raw, key=lambda x: x.get("time", 0), reverse=True)
-        beispiel_order = orders_sorted[0] if orders_sorted else "Keine"
-    else:
-        orders_sorted = []
-        beispiel_order = "Datenformat ungültig"
-
-    logs.append(f"Beispiel-Order: {beispiel_order}")
-
     return jsonify({
         "error": False,
-        "last_fill_orders": orders_sorted,
+        "last_fill_orders": fill_orders.get("data", []),
         "logs": logs
     })
 
