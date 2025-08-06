@@ -170,7 +170,7 @@ def webhook():
  
     return jsonify({
         "error": False,
-        "last_fill_orders": fill_orders
+        "last_fill_orders": fill_orders,
         "logs": logs
     })
 
