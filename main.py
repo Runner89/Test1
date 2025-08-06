@@ -54,6 +54,7 @@ def get_last_fill_orders(api_key, secret_key, symbol, limit=2):
         "limit": limit
     }
     response = send_signed_request("GET", endpoint, api_key, secret_key, params)
+    print("Fill Order API Response:", response)  # oder logs.append(...)
     if response.get("code") == 0:
         return response.get("data", [])
     else:
