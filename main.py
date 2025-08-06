@@ -567,6 +567,8 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
+    
+
     return jsonify({
         "error": False,
         "order_result": order_response,
@@ -581,6 +583,7 @@ def webhook():
         "usdt_balance_before_order": available_usdt,
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
+        "saved_usdt_amount": data.get("saved_usdt_amount", {}),        
         "logs": logs
     })
 
