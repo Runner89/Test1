@@ -7,7 +7,7 @@ import requests
 app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
-FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allOrders" #"/openApi/swap/v2/trade/allFillOrders"
+FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allFillOrders" #"/openApi/swap/v2/trade/allFillOrders"
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
 
 def generate_signature(secret_key: str, query_string: str) -> str:
