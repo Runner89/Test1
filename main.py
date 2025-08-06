@@ -61,22 +61,19 @@ def webhook():
 
     params = {
         "symbol": symbol,
-        "limit": "50"
+        "limit": "50"  # Anzahl der zurückgegebenen Orders, ggf anpassen
     }
 
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
-    # Debug Response-Code & Nachricht
-    logs.append(f"Response Code: {fill_orders_response.get('code')}")
-    logs.append(f"Response Msg: {fill_orders_response.get('msg')}")
-
-    orders = fill_orders_response.get("data", [])
+    # Wichtig: Orders sind in fill_orders_response["data"]["orders"]
+    orders_container = fill_orders_response.get("data", {})
+    orders = orders_container.get("orders", []) if isinstance(orders_container, dict) else []
 
     logs.append(f"Orders-Typ: {type(orders)}")
-    if isinstance(orders, list):
-        logs.append(f"Erste 3 Orders und deren Typen: {[(o, type(o)) for o in orders[:3]]}")
 
+    if isinstance(orders, list):
         if all(isinstance(o, dict) for o in orders):
             logs.append(f"Unsortierte Orders (updateTime): {[o.get('updateTime') for o in orders]}")
 
@@ -95,7 +92,7 @@ def webhook():
         orders_sorted = orders
 
     current_price = get_current_price(symbol)
-    if current_price is not None:
+    if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
     return jsonify({
@@ -103,6 +100,7 @@ def webhook():
         "last_fill_orders": orders_sorted,
         "logs": logs
     })
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
