@@ -76,7 +76,7 @@ def webhook():
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
     # 📋 Gefillte Orders sortieren (nach Zeit, absteigend)
-    orders_raw = fill_orders.get("data", [])
+    orders_raw = fill_orders.get("data", {}).get("fill_orders", [])
 
     if isinstance(orders_raw, list):
         orders_sorted = sorted(orders_raw, key=lambda x: x.get("time", 0), reverse=True)
