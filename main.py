@@ -75,15 +75,17 @@ def webhook():
         logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
         orders = []
 
-    # Sortiere nach updateTime (neueste zuerst)
-    orders_sorted = sorted(
-        orders,
-        key=lambda o: int(o.get("updateTime", 0)),
-        reverse=True
-    )
+    # 🔍 Nur LONG + FILLED Orders behalten
+    filtered_orders = [
+        o for o in orders
+        if o.get("positionSide") == "LONG" and o.get("status") == "FILLED"
+    ]
 
-    # Füge order_size_usdt hinzu
-    for order in orders_sorted:
+    # 📊 Sortieren nach updateTime (neueste zuerst)
+    sorted_orders = sorted(filtered_orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
+
+    # ➕ Berechne order_size_usdt für jede Order
+    for order in sorted_orders:
         try:
             executed_qty = float(order.get("executedQty", 0))
             avg_price = float(order.get("avgPrice", 0))
@@ -91,7 +93,7 @@ def webhook():
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
 
-    logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
+    logs.append(f"Gefilterte Orders (LONG + FILLED): {len(sorted_orders)}")
 
     current_price = get_current_price(symbol)
     if current_price:
@@ -99,9 +101,10 @@ def webhook():
 
     return jsonify({
         "error": False,
-        "last_fill_orders": orders_sorted,
+        "long_filled_orders": sorted_orders,
         "logs": logs
     })
+
 
 
 if __name__ == "__main__":
