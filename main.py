@@ -66,11 +66,29 @@ def webhook():
     
     orders_data = fill_orders.get("data", {}).get("orders", [])
     if isinstance(orders_data, list) and orders_data:
-        last_order = orders_data[0]
-        logs.append(f"Letzte Order extrahiert: {last_order}")
+        # Nach Zeitstempel sortieren (neueste zuerst)
+        orders_data.sort(key=lambda x: x.get("time", 0), reverse=True)
+        raw_order = orders_data[0]
+        # Optional: Lesbare Felder extrahieren
+        last_order = {
+            "symbol": raw_order.get("symbol"),
+            "order_id": raw_order.get("orderId"),
+            "side": raw_order.get("side"),
+            "position": raw_order.get("positionSide"),
+            "type": raw_order.get("type"),
+            "status": raw_order.get("status"),
+            "orig_qty": raw_order.get("origQty"),
+            "executed_qty": raw_order.get("executedQty"),
+            "avg_price": raw_order.get("avgPrice"),
+            "quote_amount": raw_order.get("cumQuote"),
+            "commission": raw_order.get("commission"),
+            "leverage": raw_order.get("leverage"),
+            "timestamp": raw_order.get("time")
+        }
     else:
         last_order = {}
-        logs.append("Keine Orders gefunden oder ungültiges Format.")
+            logs.append(f"Letzte Order extrahiert: {last_order}")
+
     
     current_price = get_current_price(symbol)
     if current_price:
