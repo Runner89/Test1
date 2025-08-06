@@ -65,13 +65,23 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
             "endTime": str(end_time)
         }
 
+        
         response = send_signed_get(api_key, secret_key, "/openApi/swap/v2/trade/allFillOrders", params)
-      
-
-        # Filter nur dicts heraus, um Fehler zu vermeiden
+        data = response.get("data", {})
+        
+        if isinstance(data, dict) and "fill_orders" in data:
+            orders = data["fill_orders"]
+        elif isinstance(data, list):
+            orders = data
+        else:
+            orders = []  # Immer mindestens eine leere Liste
+        
+        # Nun sicher filtern
         orders = [o for o in orders if isinstance(o, dict)]
-
+        
         for order in sorted(orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True):
+
+    
             if (
                 order.get("positionSide") == "LONG" and
                 order.get("status") == "FILLED" and
