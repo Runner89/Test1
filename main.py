@@ -63,7 +63,7 @@ def webhook():
 
     params = {
         "symbol": symbol,
-        "limit": "100"  # API Limit, das wir trotzdem lokal weiter filtern
+        "limit": "300"  # API Limit, das wir trotzdem lokal weiter filtern
     }
 
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
