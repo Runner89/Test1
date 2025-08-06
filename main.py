@@ -52,7 +52,7 @@ def get_current_price(symbol: str):
 def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookback_hours=72):
     now = int(time.time() * 1000)
     hour_ms = 60 * 60 * 1000
-    interval = 12 * hour_ms  # In 12-Stunden-Schritten rückwärts gehen
+    interval = 12 * hour_ms
 
     for i in range(0, lookback_hours, 12):
         end_time = now - (i * hour_ms)
@@ -66,7 +66,19 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
         }
 
         response = send_signed_get(api_key, secret_key, "/openApi/swap/v2/trade/allFillOrders", params)
-        orders = response.get("data", [])
+        data = response.get("data", {})
+
+        # Sicherstellen, dass orders eine Liste von Dicts ist
+        if isinstance(data, dict) and "orders" in data:
+            orders = data["orders"]
+        elif isinstance(data, list):
+            orders = data
+        else:
+            orders = []
+
+        # Falls orders unerwartete Form haben, leer machen
+        if not isinstance(orders, list):
+            orders = []
 
         for order in sorted(orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True):
             if (
@@ -74,7 +86,6 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
                 order.get("status") == "FILLED" and
                 order.get("side") == "BUY"
             ):
-                # order_size_usdt berechnen
                 try:
                     executed_qty = float(order.get("executedQty", 0))
                     avg_price = float(order.get("avgPrice", 0))
@@ -82,7 +93,6 @@ def get_latest_long_buy_filled_order_by_time(api_key, secret_key, symbol, lookba
                 except (ValueError, TypeError):
                     order["order_size_usdt"] = None
 
-                # updateTime in lesbares Format umwandeln
                 try:
                     ts = int(order.get("updateTime", 0))
                     dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
