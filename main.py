@@ -75,12 +75,12 @@ def webhook():
         logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
         orders = []
 
-     # 🔍 Nur LONG + FILLED Orders behalten (und keine Close-Positionen)
+     # 🔍 Nur LONG + FILLED Orders behalten (und nur BUY Positionen)
     filtered_orders = [
         o for o in orders
         if o.get("positionSide") == "LONG"
         and o.get("status") == "FILLED"
-        and not o.get("closePosition")  # ignoriert leere Strings, False, None
+        and o.get("side") == "BUY"
     ]
 
     # 📊 Sortieren nach updateTime (neueste zuerst)
