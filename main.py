@@ -55,8 +55,8 @@ def webhook():
     now_ms = int(time.time() * 1000) #jetzt
     two_weeks_ms = 14 * 24 * 60 * 60 * 1000 #vor zwei Wochen
 
-end_time = now_ms
-start_time = now_ms - two_weeks_ms
+    end_time = now_ms
+    start_time = now_ms - two_weeks_ms
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
