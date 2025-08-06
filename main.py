@@ -87,7 +87,7 @@ def webhook():
         }
     else:
         last_order = {}
-            logs.append(f"Letzte Order extrahiert: {last_order}")
+        logs.append(f"Letzte Order extrahiert: {last_order}")
 
     
     current_price = get_current_price(symbol)
