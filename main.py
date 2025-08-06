@@ -3,7 +3,7 @@ import time
 import hmac
 import hashlib
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
@@ -63,7 +63,7 @@ def webhook():
 
     params = {
         "symbol": symbol,
-        "limit": "300"  # API Limit, das wir trotzdem lokal weiter filtern
+        "limit": "400"  # API Limit, das wir trotzdem lokal weiter filtern
     }
 
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
@@ -78,9 +78,9 @@ def webhook():
 
     # Hilfsfunktion: Timestamp (ms) zu datetime konvertieren
     def timestamp_to_datetime(ts):
-        return datetime.utcfromtimestamp(int(ts) / 1000)
+        return datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)
 
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
 
     # Filter auf Orders von gestern und heute
@@ -119,7 +119,7 @@ def webhook():
         # updateTime in lesbares Format wandeln
         try:
             ts = int(order.get("updateTime", 0))
-            dt = datetime.utcfromtimestamp(ts / 1000)  # ms zu s
+            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
             order["updateTime_readable"] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
         except Exception:
             order["updateTime_readable"] = "unbekannt"
