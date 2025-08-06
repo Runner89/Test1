@@ -63,18 +63,18 @@ def webhook():
     # Anfrage senden
     fill_orders = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders}")
-
-   
-
+    
+    orders_data = fill_orders.get("data", {}).get("orders", [])
+    if isinstance(orders_data, list) and orders_data:
+        last_order = orders_data[0]
+        logs.append(f"Letzte Order extrahiert: {last_order}")
+    else:
+        last_order = {}
+        logs.append("Keine Orders gefunden oder ungültiges Format.")
+    
     current_price = get_current_price(symbol)
     if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
-
-    last_order = fill_orders.get("data", [])
-    if isinstance(last_order, list) and last_order:
-        last_order = last_order[0]  # Nur die erste (neueste) Order nehmen
-    else:
-        last_order = {}
     
     return jsonify({
         "error": False,
