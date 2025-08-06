@@ -50,28 +50,25 @@ def webhook():
     api_key = data.get("api_key")
     secret_key = data.get("secret_key")
     symbol = data.get("symbol", "BTC-USDT")
-    
-    # Zeit in Millisekunden berechnen
-    now_ms = int(time.time() * 1000) #jetzt
-    two_weeks_ms = 14 * 24 * 60 * 60 * 1000 #vor zwei Wochen
 
-    end_time = now_ms
-    start_time = now_ms - two_weeks_ms
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "API Key und Secret Key erforderlich"}), 400
 
-    # API-Parameter vorbereiten
+    # Berechne Start und Endzeit für gestern 00:00 bis heute 23:59 UTC
+    now = datetime.utcnow()
+    start_of_yesterday = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999000)
+
+    start_time = int(start_of_yesterday.timestamp() * 1000)
+    end_time = int(end_of_today.timestamp() * 1000)
+
     params = {
         "symbol": symbol,
-        "limit": "100"
+        "limit": "50",
+        "startTime": str(start_time),
+        "endTime": str(end_time)
     }
 
-    if start_time:
-        params["startTime"] = str(start_time)
-    if end_time:
-        params["endTime"] = str(end_time)
-
-    # Anfrage an BingX API
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
@@ -83,7 +80,6 @@ def webhook():
         logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
         orders = []
 
-    # 🔍 Nur LONG + FILLED Orders behalten (und nur BUY Positionen)
     filtered_orders = [
         o for o in orders
         if o.get("positionSide") == "LONG"
@@ -91,10 +87,8 @@ def webhook():
         and o.get("side") == "BUY"
     ]
 
-    # 📊 Sortieren nach updateTime (neueste zuerst)
     sorted_orders = sorted(filtered_orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
 
-    # ➕ Berechne order_size_usdt für jede Order
     for order in sorted_orders:
         try:
             executed_qty = float(order.get("executedQty", 0))
@@ -103,13 +97,10 @@ def webhook():
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
 
-    # ⏱️ Lokal nach Start- und Endzeit filtern (optional)
-    if start_time:
-        sorted_orders = [o for o in sorted_orders if int(o.get("updateTime", 0)) >= int(start_time)]
-    if end_time:
-        sorted_orders = [o for o in sorted_orders if int(o.get("updateTime", 0)) <= int(end_time)]
+    # Optional: nochmal lokal filtern nach start/end, falls API zu viele zurückgibt
+    sorted_orders = [o for o in sorted_orders if start_time <= int(o.get("updateTime", 0)) <= end_time]
 
-    logs.append(f"Gefilterte Orders (LONG + FILLED): {len(sorted_orders)}")
+    logs.append(f"Gefilterte Orders (LONG + FILLED, heute + gestern): {len(sorted_orders)}")
 
     current_price = get_current_price(symbol)
     if current_price:
