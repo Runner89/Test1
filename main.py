@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 BASE_URL = "https://open-api.bingx.com"
 FILL_ORDERS_ENDPOINT = "/openApi/swap/v2/trade/allOrders"  # Falls alle Orders, auch gefüllte, genutzt werden sollen
+TICKER_ENDPOINT = "https://contract.mexc.com/api/v1/contract/ticker"
 # Alternativ: "/openApi/swap/v2/trade/allFillOrders" wenn nur gefüllte Orders
 
 PRICE_ENDPOINT = "/openApi/swap/v2/quote/price"
@@ -46,8 +47,6 @@ def get_current_price(symbol: str):
     if data.get("code") == 0 and "data" in data and "price" in data["data"]:
         return float(data["data"]["price"])
     return None
-
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -68,35 +67,31 @@ def webhook():
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
-    orders_data = fill_orders_response.get("data", {})
-    logs.append(f"Orders-Typ: {type(orders_data)}")
-    logs.append(f"Orders-Inhalt: {orders_data}")
+    raw_orders = fill_orders_response.get("data", {})
 
-    orders = orders_data.get("orders", [])
-
-    if isinstance(orders, list) and all(isinstance(o, dict) for o in orders):
-        logs.append(f"Unsortierte Orders (updateTime): {[o.get('updateTime') for o in orders]}")
-        
-        # Sortieren nach updateTime absteigend
-        orders_sorted = sorted(
-            orders,
-            key=lambda o: int(o.get("updateTime", 0)),
-            reverse=True
-        )
-        logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
-
-        # Berechne order_size_usdt für jede Order
-        for order in orders_sorted:
-            try:
-                executed_qty = float(order.get("executedQty", 0))
-                avg_price = float(order.get("avgPrice", 0))
-                order_size_usdt = executed_qty * avg_price
-                order["order_size_usdt"] = round(order_size_usdt, 4)
-            except (ValueError, TypeError):
-                order["order_size_usdt"] = None
+    if isinstance(raw_orders, dict) and "orders" in raw_orders:
+        orders = raw_orders["orders"]
     else:
         logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
-        orders_sorted = []
+        orders = []
+
+    # Sortiere nach updateTime (neueste zuerst)
+    orders_sorted = sorted(
+        orders,
+        key=lambda o: int(o.get("updateTime", 0)),
+        reverse=True
+    )
+
+    # Füge order_size_usdt hinzu
+    for order in orders_sorted:
+        try:
+            executed_qty = float(order.get("executedQty", 0))
+            avg_price = float(order.get("avgPrice", 0))
+            order["order_size_usdt"] = round(executed_qty * avg_price, 4)
+        except (ValueError, TypeError):
+            order["order_size_usdt"] = None
+
+    logs.append(f"Sortierte Orders (updateTime): {[o.get('updateTime') for o in orders_sorted]}")
 
     current_price = get_current_price(symbol)
     if current_price:
