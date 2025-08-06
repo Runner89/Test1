@@ -563,7 +563,7 @@ def webhook():
 
             if firebase_secret:
                 firebase_speichere_alarmwert(base_asset, anzahl_käufe, firebase_secret)
-                logs.append(f"Neuer Alarmwert in Firebase gespeichert: {anzahl_käufe}")s
+                logs.append(f"Neuer Alarmwert in Firebase gespeichert: {anzahl_käufe}")
         except Exception as e:
             logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
 
