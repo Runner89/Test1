@@ -67,15 +67,13 @@ def webhook():
     fill_orders_response = send_signed_get(api_key, secret_key, FILL_ORDERS_ENDPOINT, params)
     logs.append(f"Fill Orders Full Response: {fill_orders_response}")
 
-    raw_orders = fill_orders_response.get("data", {})
+    raw_data = fill_orders_response.get("data", {})
+    orders = raw_data.get("orders", []) if isinstance(raw_data, dict) else []
 
-    if isinstance(raw_orders, dict) and "orders" in raw_orders:
-        orders = raw_orders["orders"]
-    else:
-        logs.append("Warnung: Die Orders-Daten sind nicht im erwarteten Format (Liste von Dicts).")
-        orders = []
+    logs.append(f"Orders-Typ: {type(orders)}")
+    logs.append(f"Orders-Inhalt: {orders}")
 
-     # 🔍 Nur LONG + FILLED Orders behalten (und nur BUY Positionen)
+    # Filter: nur LONG, FILLED, BUY
     filtered_orders = [
         o for o in orders
         if o.get("positionSide") == "LONG"
@@ -83,31 +81,47 @@ def webhook():
         and o.get("side") == "BUY"
     ]
 
-    # 📊 Sortieren nach updateTime (neueste zuerst)
-    sorted_orders = sorted(filtered_orders, key=lambda o: int(o.get("updateTime", 0)), reverse=True)
+    logs.append(f"Gefilterte Orders: {[o.get('orderId') for o in filtered_orders]}")
 
-    # ➕ Berechne order_size_usdt für jede Order
-    for order in sorted_orders:
+    # Sortieren nach updateTime (neueste zuerst)
+    sorted_orders = sorted(
+        filtered_orders,
+        key=lambda o: int(o.get("updateTime", 0)),
+        reverse=True
+    )
+
+    logs.append(f"Sortierte Orders nach updateTime: {[o.get('updateTime') for o in sorted_orders]}")
+
+    # Nur die erste Order nehmen (die aktuellste gültige)
+    if sorted_orders:
+        latest_order = sorted_orders[0]
+
         try:
-            executed_qty = float(order.get("executedQty", 0))
-            avg_price = float(order.get("avgPrice", 0))
-            order["order_size_usdt"] = round(executed_qty * avg_price, 4)
+            executed_qty = float(latest_order.get("executedQty", 0))
+            avg_price = float(latest_order.get("avgPrice", 0))
+            order_size_usdt = round(executed_qty * avg_price, 4)
         except (ValueError, TypeError):
-            order["order_size_usdt"] = None
+            order_size_usdt = None
 
-    logs.append(f"Gefilterte Orders (LONG + FILLED): {len(sorted_orders)}")
+        latest_order["order_size_usdt"] = order_size_usdt
 
+        logs.append(f"Erste Order-ID: {latest_order.get('orderId')}")
+        logs.append(f"Ordergröße (USDT): {order_size_usdt}")
+        result_orders = [latest_order]
+    else:
+        logs.append("Keine gültige Order gefunden.")
+        result_orders = []
+
+    # Aktuellen Preis abrufen (optional)
     current_price = get_current_price(symbol)
     if current_price:
         logs.append(f"Aktueller Preis für {symbol}: {current_price}")
 
     return jsonify({
         "error": False,
-        "long_filled_orders": sorted_orders,
+        "last_fill_orders": result_orders,
         "logs": logs
     })
-
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
