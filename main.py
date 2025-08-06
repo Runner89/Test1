@@ -3,6 +3,7 @@ import time
 import hmac
 import hashlib
 import requests
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -94,6 +95,14 @@ def webhook():
             order["order_size_usdt"] = round(executed_qty * avg_price, 4)
         except (ValueError, TypeError):
             order["order_size_usdt"] = None
+
+    # Timestamp lesbar machen (z.B. updateTime)
+        try:
+            timestamp_ms = int(order.get("updateTime", 0))
+            # timestamp_ms in Sekunden umwandeln und dann formatieren
+            order["updateTime_readable"] = datetime.utcfromtimestamp(timestamp_ms / 1000).strftime('%Y-%m-%d %H:%M:%S UTC')
+        except Exception:
+            order["updateTime_readable"] = "unbekannt"
 
     logs.append(f"Gefilterte Orders (LONG + FILLED): {len(sorted_orders)}")
 
