@@ -57,7 +57,7 @@ def webhook():
     # 📥 Parameter für allFillOrders
     params = {
         "symbol": symbol,
-        "limit": "1"
+        "limit": "20"
     }
 
     # Anfrage senden
