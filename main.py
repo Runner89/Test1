@@ -77,7 +77,7 @@ def webhook():
         orders = []
 
      # 🔍 Nur LONG + FILLED Orders behalten (und nur BUY Positionen)
-     filtered_orders = [
+    filtered_orders = [
         o for o in orders
         if o.get("status") == "FILLED"
     ]
