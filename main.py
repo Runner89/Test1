@@ -105,7 +105,7 @@ def get_current_position(api_key, secret_key, symbol, position_side, logs=None):
     return position_size, raw_positions, liquidation_price
 
 # Abruf der letzten ausgeführten Fill Orders
-def get_last_fill_orders(api_key, secret_key, symbol, limit=2):
+def get_last_fill_orders(api_key, secret_key, symbol, limit=10):
     endpoint = FILL_ORDERS_ENDPOINT
     params = {
         "symbol": symbol,
