@@ -491,6 +491,7 @@ def webhook():
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
             logs.append(firebase_loesche_status(base_asset, firebase_secret))
+            logs.append(firebase_setze_status(base_asset, "OK", firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Löschen: {e}")
             #sende_telegram_nachricht(f"Fehler beim Löschen {base_asset}: {e}")
