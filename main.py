@@ -554,7 +554,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
-    aktueller_status == "Fehler"
+    aktueller_status = "Fehler"
     logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
 
     # (9) Alte Sell-Limit-Orders löschen
