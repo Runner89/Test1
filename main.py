@@ -500,7 +500,7 @@ def webhook():
     if firebase_secret:
         try:
             aktueller_status = firebase_lese_status(base_asset, firebase_secret)
-            if  aktueller_status != "Fehler"
+            if  aktueller_status != "Fehler":
                 aktueller_status = "OK"
         except Exception as e:
             aktueller_status = "Fehler"  
