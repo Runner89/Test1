@@ -566,6 +566,7 @@ def firebase_loesche_status(asset, firebase_secret):
                 #sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
         except Exception as e:
             logs.append(f"Fehler bei Firebase-Zugriff: {e}")
+            sende_telegram_nachricht(f"Fehler bei Firebase-Zugriff bei {base_asset}")
 
     # Fallback: BingX-Durchschnittspreis
     if not durchschnittspreis or durchschnittspreis == 0:
