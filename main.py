@@ -360,31 +360,7 @@ def firebase_loesche_status(asset, firebase_secret):
 
 
 @app.route('/webhook', methods=['POST'])
-
-        try:
-            aktueller_status = firebase_lese_status(base_asset, firebase_secret)
-            if  aktueller_status != "Fehler":
-                aktueller_status = "OK"
-        except Exception as e:
-            aktueller_status = "Fehler"  
-            logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
-    
-    # (7) Kaufpreis speichern
-    if firebase_secret and price_from_webhook:
-        try:
-            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            aktueller_status = "Fehler"  
-            
-    # (8) Durchschnittspreis berechnen
-    durchschnittspreis = None
-    kaufpreise = []
-    nutze_firebase_kaufpreise = True
-
-    if firebase_secret:
-        try:
-            if aktueller_status == "Fehler":def webhook():
+def webhook():
     global saved_usdt_amounts
     
     data = request.json
@@ -404,8 +380,6 @@ def firebase_loesche_status(asset, firebase_secret):
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-
-    
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
