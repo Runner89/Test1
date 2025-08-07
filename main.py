@@ -262,7 +262,7 @@ def cancel_order(api_key, secret_key, symbol, order_id):
 def firebase_speichere_ordergroesse(coin, betrag, secret):
     # Speichert die Ordergröße (z. B. in USDT) für einen Coin in Firebase. Rückgabe: Bestätigungstext oder Exception bei Fehler.
 
-    url = f"https://<dein-firebase-url>/{secret}/Ordergroesse/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Ordergroesse/{coin}.json"
     try:
         response = requests.put(url, json=betrag)
         response.raise_for_status()
@@ -273,7 +273,7 @@ def firebase_speichere_ordergroesse(coin, betrag, secret):
 def firebase_lese_ordergroesse(coin, secret):
     # Liest die gespeicherte Ordergröße (z. B. in USDT) für einen Coin aus Firebase. Gibt die Ordergröße (float) zurück oder None, wenn keine gespeichert ist. Wirft Exception nur bei HTTP-Fehlern.
 
-    url = f"https://<dein-firebase-url>/{secret}/Ordergroesse/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Ordergroesse/{coin}.json"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -289,7 +289,7 @@ def firebase_lese_ordergroesse(coin, secret):
 def firebase_loesche_ordergroesse(coin, secret):
     # Löscht die gespeicherte Ordergröße eines Coins aus Firebase. Rückgabe: Bestätigungstext oder Exception bei HTTP-Fehler.
     
-    url = f"https://<dein-firebase-url>/{secret}/Ordergroesse/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Ordergroesse/{coin}.json"
     try:
         response = requests.delete(url)
         response.raise_for_status()
@@ -299,7 +299,7 @@ def firebase_loesche_ordergroesse(coin, secret):
 
 def firebase_speichere_kaufpreis(coin, preis, secret):
     #Speichert einen neuen Kaufpreis für den Coin in Firebase. Rückgabe: Firebase-Response (meist 'name': "...") oder Exception bei Fehler.
-    url = f"https://<dein-firebase-url>/{secret}/Kaufpreise/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Kaufpreise/{coin}.json"
     try:
         response = requests.post(url, json=preis)
         response.raise_for_status()  # ← wirft Exception bei HTTP-Fehlern
@@ -309,7 +309,7 @@ def firebase_speichere_kaufpreis(coin, preis, secret):
 
 def firebase_loesche_kaufpreise(coin, secret):
     #Löscht alle Kaufpreise zu einem Coin in Firebase. Rückgabe: 'Gelöscht' oder Exception bei Fehler.
-    url = f"https://<dein-firebase-url>/{secret}/Kaufpreise/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Kaufpreise/{coin}.json"
     try:
         response = requests.delete(url)
         response.raise_for_status()
@@ -319,7 +319,7 @@ def firebase_loesche_kaufpreise(coin, secret):
 
 def firebase_lese_kaufpreise(coin, secret):
     #Liest alle gespeicherten Kaufpreise für einen Coin aus Firebase. Gibt eine Liste von Preisen zurück oder eine leere Liste, falls keine vorhanden. Wirft Exception bei HTTP-Fehlern.
-    url = f"https://<dein-firebase-url>/{secret}/Kaufpreise/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Kaufpreise/{coin}.json"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -357,7 +357,7 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 def firebase_setze_status(coin, status, secret):
     # Setzt den Status (z. B. 'Fehler') für den Coin. Rückgabe: Bestätigung oder Exception bei Fehler.
 
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Status/{coin}.json"
     try:
         response = requests.put(url, json=status)
         response.raise_for_status()
@@ -367,7 +367,7 @@ def firebase_setze_status(coin, status, secret):
 def firebase_lese_status(coin, secret):
     #    Liest den Status eines Coins aus Firebase. Gibt den Status als String zurück oder None, wenn kein Status gesetzt ist. Wirft Exception nur bei HTTP-Fehlern.
   
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Status/{coin}.json"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -379,7 +379,7 @@ def firebase_lese_status(coin, secret):
 
 def firebase_loesche_status(coin, secret):
     #  Löscht den Status eines Coins in Firebase. Gibt eine Bestätigung zurück oder wirft Exception bei HTTP-Fehlern.
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/{secret}/Status/{coin}.json"
     try:
         response = requests.delete(url)
         response.raise_for_status()
