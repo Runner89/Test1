@@ -363,7 +363,7 @@ def firebase_loesche_status(asset, firebase_secret):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     global saved_usdt_amounts
-    global status_fuer_alle
+  
     
     data = request.json
     logs = []
