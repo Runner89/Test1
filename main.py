@@ -313,20 +313,29 @@ def firebase_lese_kaufpreise(asset, firebase_secret):
         return []
     return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
 
-def firebase_setze_status(asset, firebase_secret):
-    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
-    response = requests.put(url, json=status)
-    return f"Status gesetzt für {asset}: {response.text}"
+def firebase_lese_status(asset, secret):
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={secret}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()  # Gibt den tatsächlichen Status zurück (z. B. "Fehler")
+    else:
+        return None  # Oder raise/Fehlerbehandlung
 
 def firebase_lese_status(coin, secret):
     url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
-    return response.json()
+    if response.status_code == 200:
+        return f"Status gesetzt für {asset}: {status}"
+    else:
+        return f"Fehler beim Setzen des Status für {asset}: Status {response.status_code}"
 
-def firebase_loesche_status(coin, secret):
-    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
+def firebase_loesche_status(asset, secret):
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={secret}"
     response = requests.delete(url)
-    return f"Status gelöscht für {coin}: {response.text}"
+    if response.status_code == 200:
+        return f"Status für {coin} gelöscht."
+    else:
+        return f"Fehler beim Löschen des Status für {coin}: Status {response.status_code}"
 
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
