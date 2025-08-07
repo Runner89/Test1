@@ -360,7 +360,31 @@ def firebase_loesche_status(asset, firebase_secret):
 
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
+
+        try:
+            aktueller_status = firebase_lese_status(base_asset, firebase_secret)
+            if  aktueller_status != "Fehler":
+                aktueller_status = "OK"
+        except Exception as e:
+            aktueller_status = "Fehler"  
+            logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
+    
+    # (7) Kaufpreis speichern
+    if firebase_secret and price_from_webhook:
+        try:
+            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            aktueller_status = "Fehler"  
+            
+    # (8) Durchschnittspreis berechnen
+    durchschnittspreis = None
+    kaufpreise = []
+    nutze_firebase_kaufpreise = True
+
+    if firebase_secret:
+        try:
+            if aktueller_status == "Fehler":def webhook():
     global saved_usdt_amounts
     
     data = request.json
@@ -507,14 +531,15 @@ def webhook():
         except Exception as e:
             aktueller_status = "Fehler"  
             logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
-    
+
+
     # (7) Kaufpreis speichern
     if firebase_secret and price_from_webhook:
         try:
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
+            aktueller_status = "Fehler" 
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            aktueller_status = "Fehler"  
             
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
@@ -527,8 +552,7 @@ def webhook():
                 nutze_firebase_kaufpreise = False
                 logs.append(f"⚠️ Fehlerstatus vorhanden. Firebase-Kaufpreise werden ignoriert.")
         except Exception as e:
-            logs.append(f"Fehler beim Status lesen: {e}")
-            aktueller_status = "Fehler"  
+                logs.append(f"Fehler beim Status lesen: {e}")
 
     # Firebase verwenden, wenn kein Fehlerstatus
     if firebase_secret and nutze_firebase_kaufpreise:
@@ -552,12 +576,13 @@ def webhook():
                     if avg_price > 0:
                         durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                         logs.append(f"Fallback avgPrice genutzt: {durchschnittspreis}")
-                        sende_telegram_nachricht(f"Durchschnittspreis von BINGX genutzt bei {base_asset}")
+                        sende_telegram_nachricht(f"Fallback-Durchschnitt von BINGX genutzt bei {base_asset}")
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
     aktueller_status = "Fehler"
     logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
+
 
     # (9) Alte Sell-Limit-Orders löschen
     try:
