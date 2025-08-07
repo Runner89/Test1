@@ -512,11 +512,7 @@ def webhook():
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-
-
-        except Exception as e:
-            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            # Hier ggf. Status anders behandeln, wenn das nötig ist
+            aktueller_status = "Fehler"  
             
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
@@ -530,6 +526,7 @@ def webhook():
                 logs.append(f"⚠️ Fehlerstatus vorhanden. Firebase-Kaufpreise werden ignoriert.")
         except Exception as e:
             logs.append(f"Fehler beim Status lesen: {e}")
+            aktueller_status = "Fehler"  
 
     # Firebase verwenden, wenn kein Fehlerstatus
     if firebase_secret and nutze_firebase_kaufpreise:
