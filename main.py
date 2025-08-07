@@ -45,6 +45,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 saved_usdt_amounts = {}  # globales Dict für alle Coins
+status_fuer_alle = {}  # globales Dict für alle Coins
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -362,6 +363,7 @@ def firebase_loesche_status(asset, firebase_secret):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     global saved_usdt_amounts
+    global status_fuer_alle
     
     data = request.json
     logs = []
@@ -488,23 +490,11 @@ def webhook():
     if firebase_secret and not open_sell_orders_exist:
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
-            logs.append(firebase_loesche_status(base_asset, firebase_secret))                                
-            logs.append(firebase_setze_status(base_asset, "OK", firebase_secret))
-            time.sleep(2)
+            status_fuer_alle.pop(symbol, None)
         except Exception as e:
             logs.append(f"Fehler beim Löschen: {e}")
             #sende_telegram_nachricht(f"Fehler beim Löschen {base_asset}: {e}")
 
-    
-    # Zu Beginn: Status nur auf "OK" setzen, wenn aktuell nicht "Fehler"
-    if firebase_secret:
-        try:
-            aktueller_status = firebase_lese_status(base_asset, firebase_secret)
-            if  aktueller_status != "Fehler":
-                aktueller_status = "OK"
-        except Exception as e:
-            aktueller_status = "Fehler"  
-            logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
 
 
     # (7) Kaufpreis speichern
@@ -512,7 +502,7 @@ def webhook():
         try:
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
-            aktueller_status = "Fehler" 
+            status_fuer_alle[symbol] = "Fehler"
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
             
     # (8) Durchschnittspreis berechnen
@@ -522,7 +512,7 @@ def webhook():
 
     if firebase_secret:
         try:
-            if aktueller_status == "Fehler":
+            if status_fuer_alle.get(symbol) == "Fehler":
                 nutze_firebase_kaufpreise = False
                 logs.append(f"⚠️ Fehlerstatus vorhanden. Firebase-Kaufpreise werden ignoriert.")
         except Exception as e:
@@ -535,6 +525,7 @@ def webhook():
             durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
             if durchschnittspreis:
                 logs.append(f"Durchschnittspreis aus Firebase: {durchschnittspreis}")
+                status_fuer_alle[symbol] = "OK"
             else:
                 logs.append("⚠️ Keine gültigen Firebase-Kaufpreise.")
                 #sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
@@ -555,8 +546,6 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
-    aktueller_status = "Fehler"
-    logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
 
 
     # (9) Alte Sell-Limit-Orders löschen
