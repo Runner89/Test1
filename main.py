@@ -315,7 +315,7 @@ def firebase_loesche_kaufpreise(coin, secret):
         response.raise_for_status()
         return f"Kaufpreise gelöscht ({coin})"
     except requests.RequestException as e:
-        raise RuntimeError(f"Kaufpreise löschen fehlgeschlagen ({coin}): {e}"
+        raise RuntimeError(f"Kaufpreise löschen fehlgeschlagen ({coin}): {e}")
 
 def firebase_lese_kaufpreise(coin, secret):
     #Liest alle gespeicherten Kaufpreise für einen Coin aus Firebase. Gibt eine Liste von Preisen zurück oder eine leere Liste, falls keine vorhanden. Wirft Exception bei HTTP-Fehlern.
