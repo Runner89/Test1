@@ -259,40 +259,41 @@ def cancel_order(api_key, secret_key, symbol, order_id):
     response = requests.delete(url, headers=headers)
     return response.json()
 
-def firebase_speichere_ordergroesse(asset, ordergroesse, firebase_secret):
-    url = f"{FIREBASE_URL}/Ordergroesse/{asset}.json?auth={firebase_secret}"
-    data = ordergroesse
+def firebase_speichere_ordergroesse(asset, betrag, firebase_secret):
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
+    data = {"usdt_amount": betrag}
     response = requests.put(url, json=data)
-    if response.status_code == 200:
-        return f"Ordergröße für {coin} gespeichert."
-    else:
-        return f"Fehler beim Speichern der Ordergröße für {coin}: Status {response.status_code}"
-        
+    return f"Ordergröße für {asset} gespeichert: {betrag}, Status: {response.status_code}"
+
 def firebase_lese_ordergroesse(asset, firebase_secret):
-    url = f"{FIREBASE_URL}/Ordergroesse/{asset}.json?auth={firebase_secret}"
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
+    
+    if response.status_code != 200:
         return None
-        
+
+    try:
+        data = response.json()
+        if isinstance(data, dict) and "usdt_amount" in data:
+            return float(data["usdt_amount"])
+        elif isinstance(data, (int, float)):
+            return float(data)  # Fallback, falls nur ein roher Wert gespeichert wurde
+    except Exception as e:
+        print(f"[Fehler] Firebase JSON Parsing: {e}")
+
+    return None
+
 
 def firebase_loesche_ordergroesse(asset, firebase_secret):
-    url = f"{FIREBASE_URL}/Ordergroesse/{asset}.json?auth={firebase_secret}"
+    url = f"{FIREBASE_URL}/ordergroesse/{asset}.json?auth={firebase_secret}"
     response = requests.delete(url)
-    if response.status_code == 200:
-        return f"Ordergröße für {coin} gelöscht."
-    else:
-        return f"Fehler beim Löschen der Ordergröße für {coin}: Status {response.status_code}"
-        
-def firebase_speichere_kaufpreis(asset, preis, firebase_secret):
+    return f"Ordergröße für {asset} gelöscht, Status: {response.status_code}"
+
+def firebase_speichere_kaufpreis(asset, price, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
-    data = preis
+    data = {"price": price}
     response = requests.post(url, json=data)
-    if response.status_code == 200:
-        return f"Kaufpreis für {asset} gespeichert."
-    else:
-        return f"Fehler beim Speichern des Kaufpreises für {asset}: Status {response.status_code}"
+    return f"Kaufpreis gespeichert für {asset}: {price}, Status: {response.status_code}"
 
 def firebase_loesche_kaufpreise(asset, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
@@ -305,10 +306,27 @@ def firebase_loesche_kaufpreise(asset, firebase_secret):
 def firebase_lese_kaufpreise(asset, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
-    if response.status_code == 200:
-        return response.json() or []
-    else:
+    if response.status_code != 200:
+        return None
+    data = response.json()
+    if not data:
         return []
+    return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
+
+def firebase_setze_status(asset, firebase_secret):
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
+    response = requests.put(url, json=status)
+    return f"Status gesetzt für {asset}: {response.text}"
+
+def firebase_lese_status(coin, secret):
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
+    response = requests.get(url)
+    return response.json()
+
+def firebase_loesche_status(coin, secret):
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
+    response = requests.delete(url)
+    return f"Status gelöscht für {coin}: {response.text}"
 
 def berechne_durchschnittspreis(preise):
     preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
@@ -330,23 +348,6 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
         "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
-
-def firebase_setze_status(coin, status, secret):
-    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
-    response = requests.put(url, json=status)
-    return f"Status gesetzt für {coin}: {response.text}"
-
-
-def firebase_lese_status(coin, secret):
-    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
-    response = requests.get(url)
-    return response.json()
-
-def firebase_loesche_status(coin, secret):
-    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
-    response = requests.delete(url)
-    return f"Status gelöscht für {coin}: {response.text}"
-    
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -441,7 +442,7 @@ def webhook():
                     sende_telegram_nachricht(f"Ordergrösse aus Firebase gelesen bei Coin: {base_asset}")
                 else:
                     logs.append(f"⚠️ Keine Ordergrösse in Variable oder Firebase für {base_asset} gefunden.")
-                    #sende_telegram_nachricht(f"keine Ordergrösse gefunden bei Coin: {base_asset}")
+                    sende_telegram_nachricht(f"keine Ordergrösse gefunden bei Coin: {base_asset}")
             else:
                 usdt_amount = saved_usdt_amount
                 logs.append(f"Verwende gespeicherte Ordergrösse: {usdt_amount}")
@@ -608,6 +609,7 @@ def webhook():
         "saved_usdt_amount": saved_usdt_amounts,
         "logs": logs
     })
-    
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
