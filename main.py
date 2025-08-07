@@ -500,12 +500,10 @@ def webhook():
     if firebase_secret:
         try:
             aktueller_status = firebase_lese_status(base_asset, firebase_secret)
-            if aktueller_status != "Fehler":
-                logs.append(firebase_setze_status(base_asset, "OK", firebase_secret))
-            else:
-                logs.append(f"Status ist bereits Fehler, bleibt unverändert.")
+            if  aktueller_status != "Fehler"
+                aktueller_status = "OK"
         except Exception as e:
-            aktueller_status == "Fehler"
+            aktueller_status = "Fehler"  
             logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
     
     # (7) Kaufpreis speichern
@@ -515,10 +513,10 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
 
-        
-    except Exception as e:
-        logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-        # Hier ggf. Status anders behandeln, wenn das nötig ist
+
+        except Exception as e:
+            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            # Hier ggf. Status anders behandeln, wenn das nötig ist
             
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
@@ -527,9 +525,7 @@ def webhook():
 
     if firebase_secret:
         try:
-            status = firebase_lese_status(base_asset, firebase_secret)
-            logs.append(f"Status für {base_asset}: {status}")
-            if status == "Fehler":
+            if aktueller_status == "Fehler":
                 nutze_firebase_kaufpreise = False
                 logs.append(f"⚠️ Fehlerstatus vorhanden. Firebase-Kaufpreise werden ignoriert.")
         except Exception as e:
@@ -561,6 +557,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
+    aktueller_status == "Fehler"
     logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
 
     # (9) Alte Sell-Limit-Orders löschen
