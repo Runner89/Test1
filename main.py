@@ -512,11 +512,6 @@ def webhook():
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-
-
-        except Exception as e:
-            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            # Hier ggf. Status anders behandeln, wenn das nötig ist
             
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
@@ -557,7 +552,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
-    aktueller_status == "Fehler"
+    aktueller_status = "Fehler"
     logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
 
     # (9) Alte Sell-Limit-Orders löschen
