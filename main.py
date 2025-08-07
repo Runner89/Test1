@@ -499,11 +499,17 @@ def webhook():
     if firebase_secret and price_from_webhook:
         try:
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
-            logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))  # Status: Fehler
+            
+            # Status nur setzen, wenn aktuell nicht schon "Fehler"
+            aktueller_status = firebase_lese_status(base_asset, firebase_secret)
+            if aktueller_status != "Fehler":
+                logs.append(firebase_setze_status(base_asset, "OK", firebase_secret))
+            
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            #sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
-
+            logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
+            
+            
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
     kaufpreise = []
@@ -528,7 +534,7 @@ def webhook():
                 logs.append(f"Durchschnittspreis aus Firebase: {durchschnittspreis}")
             else:
                 logs.append("⚠️ Keine gültigen Firebase-Kaufpreise.")
-                sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
+                #sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
         except Exception as e:
             logs.append(f"Fehler bei Firebase-Zugriff: {e}")
 
@@ -541,7 +547,7 @@ def webhook():
                     if avg_price > 0:
                         durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                         logs.append(f"Fallback avgPrice genutzt: {durchschnittspreis}")
-                        sende_telegram_nachricht(f"Fallback-Durchschnitt genutzt bei {base_asset}")
+                        sende_telegram_nachricht(f"Fallback-Durchschnitt von BINGX genutzt bei {base_asset}")
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
 
