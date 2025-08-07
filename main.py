@@ -332,18 +332,18 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
 
 def firebase_setze_status(coin, status, secret):
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
     response = requests.put(url, json=status)
     return f"Status gesetzt für {coin}: {response.text}"
 
 
 def firebase_lese_status(coin, secret):
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
     response = requests.get(url)
     return response.json()
 
 def firebase_loesche_status(coin, secret):
-    url = f"https://<dein-firebase-url>/{secret}/Status/{coin}.json"
+    url = f"{FIREBASE_URL}/Status/{asset}.json?auth={firebase_secret}"
     response = requests.delete(url)
     return f"Status gelöscht für {coin}: {response.text}"
     
