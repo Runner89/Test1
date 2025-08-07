@@ -495,20 +495,30 @@ def webhook():
             logs.append(f"Fehler beim Löschen: {e}")
             #sende_telegram_nachricht(f"Fehler beim Löschen {base_asset}: {e}")
 
-    # (7) Kaufpreis speichern + Status setzen
-    if firebase_secret and price_from_webhook:
+    
+    # Zu Beginn: Status nur auf "OK" setzen, wenn aktuell nicht "Fehler"
+    if firebase_secret:
         try:
-            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
-            
-            # Status nur setzen, wenn aktuell nicht schon "Fehler"
             aktueller_status = firebase_lese_status(base_asset, firebase_secret)
             if aktueller_status != "Fehler":
                 logs.append(firebase_setze_status(base_asset, "OK", firebase_secret))
-            
+            else:
+                logs.append(f"Status ist bereits Fehler, bleibt unverändert.")
+        except Exception as e:
+            aktueller_status == "Fehler"
+            logs.append(f"Fehler beim Lesen oder Setzen des Status: {e}")
+    
+    # (7) Kaufpreis speichern
+    if firebase_secret and price_from_webhook:
+        try:
+            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
-            
+
+        
+    except Exception as e:
+        logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+        # Hier ggf. Status anders behandeln, wenn das nötig ist
             
     # (8) Durchschnittspreis berechnen
     durchschnittspreis = None
@@ -550,6 +560,8 @@ def webhook():
                         sende_telegram_nachricht(f"Fallback-Durchschnitt von BINGX genutzt bei {base_asset}")
         except Exception as e:
             logs.append(f"Fehler bei Fallback-Durchschnittspreis: {e}")
+
+    logs.append(firebase_setze_status(base_asset, "Fehler", firebase_secret))
 
     # (9) Alte Sell-Limit-Orders löschen
     try:
