@@ -432,7 +432,7 @@ def webhook():
                     saved_usdt_amounts[base_asset] = usdt_amount
                     logs.append(f"Ordergröße aus Firebase für {base_asset} gelesen: {usdt_amount}")
                 else:
-                    logs.append(f"⚠️ Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
+                    logs.append(f"FEHLER: Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
                     sende_telegram_nachricht(f"keine Ordergrösse gefunden bei Coin: {base_asset}")
             else:
                 usdt_amount = saved_usdt_amount
@@ -479,7 +479,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
             status_fuer_alle[symbol] = "Fehler"
-            sende_telegram_nachricht(f"ℹ️ Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
+            sende_telegram_nachricht(f" HINWEIS: Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
 
    # 7. Kaufpreis speichern + Status ggf. auf OK setzen
     if firebase_secret and price_from_webhook:
@@ -500,7 +500,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
             status_fuer_alle[symbol] = "Fehler"
-            sende_telegram_nachricht(f"ℹ️ Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
+            sende_telegram_nachricht(f"HINWEIS Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
   # 8. Durchschnittspreis bestimmen – abhängig vom Status
     durchschnittspreis = None
@@ -519,10 +519,10 @@ def webhook():
                         if avg_price > 0:
                             durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                             logs.append(f"[Direkter Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
-                            sende_telegram_nachricht(f"ℹ️ Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
+                            sende_telegram_nachricht(f"HINWEIS Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
                         else:
                             logs.append("[Direkter Fallback] Kein gültiger avgPrice in Position vorhanden.")
-                            sende_telegram_nachricht(f"⚠️ Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
+                            sende_telegram_nachricht(f"FEHLER: Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
                         break
             except Exception as e:
                 logs.append(f"[Direkter Fallback Fehler] avgPrice konnte nicht berechnet werden: {e}")
@@ -537,7 +537,7 @@ def webhook():
                 else:
                     logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
                     status_fuer_alle[symbol] = "Fehler"
-                    sende_telegram_nachricht(f"ℹ️ Keine gültigen Kaufpreise auf BINGX gefunden für {base_asset}: {e}")
+                    sende_telegram_nachricht(f"HINWEIS: Keine gültigen Kaufpreise auf BINGX gefunden für {base_asset}: {e}")
     
             # 2. Fallback BingX, wenn Firebase nichts liefert
             if not durchschnittspreis or durchschnittspreis == 0:
@@ -548,15 +548,15 @@ def webhook():
                             if avg_price > 0:
                                 durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                                 logs.append(f"[Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
-                                sende_telegram_nachricht(f"ℹ️ Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
+                                sende_telegram_nachricht(f"HINWEIS: Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
                                 
                             else:
                                 logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
-                                sende_telegram_nachricht(f"⚠️ Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
+                                sende_telegram_nachricht(f"FEHLER: Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
                             break
                 except Exception as e:
                     logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
-                    sende_telegram_nachricht(f"⚠️ Fallback auf BINGX fehlgeschlagen für {base_asset} gefunden: {e}")
+                    sende_telegram_nachricht(f"FEHLER: Fallback auf BINGX fehlgeschlagen für {base_asset} gefunden: {e}")
                     status_fuer_alle[symbol] = "Fehler"
     
     except Exception as e:
