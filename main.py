@@ -542,8 +542,6 @@ def webhook():
                         if avg_price > 0:
                             durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                             sende_telegram_nachricht(f"ℹ️ Durchschnittspreis von BINGX verwendet für {base_asset}")
-                            status_fuer_alle[base_asset] = "Fehler2
-                            status_fuer_alle[base_asset] = "Fehler"
                             logs.append("Fehler in Firebase (Kaufpreis) bei Coin: {base_asset}")
                         else:
                             logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
