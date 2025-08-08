@@ -493,7 +493,7 @@ def webhook():
             sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
     # 8. Durchschnittspreis bestimmen – zuerst aus Firebase, sonst avgPrice von BingX
-        try:
+    try:
         if firebase_secret:
             # Status prüfen, ob Fehler vorliegt
             if status_fuer_alle.get(symbol) != "Fehler":
