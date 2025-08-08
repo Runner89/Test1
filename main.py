@@ -415,6 +415,9 @@ def webhook():
                 logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
                 # Lokale Ordergröße ebenfalls aus dem Cache entfernen
                 logs.append(f"keine offene Sell-Limit-Order")
+                status_fuer_alle.pop(symbol, None)
+                status_fuer_alle[symbol] = "OK"
+                
 
                 if base_asset in saved_usdt_amounts:
                     del saved_usdt_amounts[base_asset]
@@ -490,25 +493,25 @@ def webhook():
             sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
     # 8. Durchschnittspreis bestimmen – zuerst aus Firebase, sonst avgPrice von BingX
-    durchschnittspreis = None
-    kaufpreise = []
-
-    # 1. Versuch: Firebase lesen
-    try:
+        try:
         if firebase_secret:
-            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
-            durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
-            if durchschnittspreis:
-                logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+            # Status prüfen, ob Fehler vorliegt
+            if status_fuer_alle.get(symbol) != "Fehler":
+                kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
+                durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
+                if durchschnittspreis:
+                    logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+                else:
+                    logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
+                    sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
             else:
-                logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
-                sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}: {e}")
+                logs.append(f"[Info] Fehlerstatus für {symbol}, verwende Fallback avgPrice.")
     except Exception as e:
         logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
         sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
-
-    # 2. Fallback: avgPrice aus BingX-Position, wenn Firebase-Durchschnitt fehlt oder Fehler
-    if not durchschnittspreis or durchschnittspreis == 0:
+    
+    # Fallback nur, wenn Fehlerstatus vorliegt ODER kein gültiger Durchschnittspreis aus Firebase
+    if status_fuer_alle.get(symbol) == "Fehler" or not durchschnittspreis or durchschnittspreis == 0:
         try:
             for pos in positions_raw:
                 if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
