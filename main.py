@@ -438,12 +438,12 @@ def webhook():
                         saved_usdt_amounts[base_asset] = usdt_amount
                         logs.append(f"Ordergröße aus Firebase für {base_asset} gelesen: {usdt_amount}")
                     else:
-                        logs.append(f"⚠️ Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
-                        sende_telegram_nachricht(f"keine Ordergrösse gefunden bei Coin: {base_asset}")
+                        logs.append(f"❌ Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
+                        sende_telegram_nachricht(f"❌ keine Ordergrösse gefunden bei Coin: {base_asset}")
                 except Exception as e:
                     status_fuer_alle[base_asset] = "Fehler"
                     logs.append(f"Fehler beim Lesen der Ordergröße aus Firebase: {e}")
-                    sende_telegram_nachricht(f"Fehler beim Lesen der Ordergröße aus Firebase {base_asset}: {e}")
+                    sende_telegram_nachricht(f"❌ Fehler beim Lesen der Ordergröße aus Firebase {base_asset}: {e}")
             else:
                 usdt_amount = saved_usdt_amount
                 logs.append(f"Verwende gespeicherte Ordergröße aus Dict für {base_asset}: {usdt_amount}")
@@ -475,6 +475,7 @@ def webhook():
         else:
             stop_loss_price = None
             logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
+            sende_telegram_nachricht(f"ℹ️ Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich für {base_asset}")
     except Exception as e:
         sell_quantity = 0
         stop_loss_price = None
@@ -488,7 +489,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
             status_fuer_alle[base_asset] = "Fehler"
-            sende_telegram_nachricht(f"Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
+            #sende_telegram_nachricht(f"Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
 
     # 7. Kaufpreis speichern
     if firebase_secret and price_from_webhook:
@@ -497,7 +498,7 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
             status_fuer_alle[base_asset] = "Fehler"
-            sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
+            #sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
     # 8. Durchschnittspreis bestimmen – zuerst Status prüfen
     durchschnittspreis = None
@@ -532,7 +533,7 @@ def webhook():
             status_fuer_alle[base_asset] = "Fehler"
             logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
             status_fuer_alle[base_asset] = "Fehler"
-            sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
+            #sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
 
         # Falls kein Durchschnitt aus Firebase, dann Fallback (wie bisher)
         if not durchschnittspreis or durchschnittspreis == 0:
@@ -551,6 +552,7 @@ def webhook():
                         break
             except Exception as e:
                 logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
+                sende_telegram_nachricht(f"❌ Fallback von BINGX fehlgeschlagen für {base_asset}")           
 
 
     # 9. Alte Sell-Limit-Orders löschen
