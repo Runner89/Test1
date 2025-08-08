@@ -215,27 +215,25 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return "Telegram nicht konfiguriert"
+
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text
     }
-    response = requests.post(url, json=payload)
-    return f"Telegram Antwort: {response.status_code}"
 
-    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
-    params_dict["signature"] = signature
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()  # wirft Exception bei HTTP Fehlercodes
 
-    url = f"{BASE_URL}{ORDER_ENDPOINT}"
-    headers = {
-        "X-BX-APIKEY": api_key,
-        "Content-Type": "application/json"
-    }
+        data = response.json()
+        if data.get("ok"):
+            return "Telegram Nachricht erfolgreich gesendet"
+        else:
+            return f"Telegram API Fehler: {data}"
 
-    response = requests.post(url, headers=headers, json=params_dict)
-    return response.json()
-
+    except requests.exceptions.RequestException as e:
+        return f"Fehler beim Senden der Telegram Nachricht: {e}"
 def get_open_orders(api_key, secret_key, symbol):
     timestamp = int(time.time() * 1000)
     params = f"symbol={symbol}&timestamp={timestamp}"
@@ -486,16 +484,6 @@ def webhook():
         try:
             result = firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret)
             logs.append(result)
-
-            # Falls Status nicht "Fehler" ist, auf OK setzen
-            try:
-                aktueller_status = status_fuer_alle.get(symbol)
-                if aktueller_status != "Fehler":
-                    
-                   
-                    logs.append(f"Status für {base_asset} auf OK gesetzt.")
-            except Exception as e:
-                logs.append(f"Fehler beim Setzen des Status auf OK: {e}")
 
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
