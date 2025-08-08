@@ -506,6 +506,7 @@ def webhook():
                     sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
             else:
                 logs.append(f"[Info] Fehlerstatus für {symbol}, verwende Fallback avgPrice.")
+                status_fuer_alle[symbol] = "Fehler"
     except Exception as e:
         logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
         sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
