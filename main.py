@@ -1,10 +1,11 @@
 #Market Order mit Hebel wird gesetzt
-#Hebel muss in Bingx selber vorher eingestellt werden
+#Hebel muss in BINGX selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
 #Durschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
 #Verfügbares Guthaben wird ermittelt
 #Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
+#Ordergrösse wird in Variable gespeichert, Firebase wird nur als Backup verwendet
 #StopLoss 2% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.02% für die Berechnung der Sell-Limit-Order verwendet.
 
