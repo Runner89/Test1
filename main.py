@@ -414,6 +414,8 @@ def webhook():
             if not open_sell_orders_exist:
                 logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
                 # Lokale Ordergröße ebenfalls aus dem Cache entfernen
+                sende_telegram_nachricht(f"keine offene Sell-Order {base_asset}: {e}")
+
                 if base_asset in saved_usdt_amounts:
                     del saved_usdt_amounts[base_asset]
                     logs.append(f"Ordergröße aus Cache für {base_asset} gelöscht (keine offene Sell-Limit-Order)")
