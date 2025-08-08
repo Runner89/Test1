@@ -409,7 +409,7 @@ def webhook():
 
             # Falls keine offene Sell-Limit-Order existiert, Status löschen und OK setzen
             if not open_sell_orders_exist:
-                sende_telegram_nachricht(f" keine offene Sell-Order")
+                #sende_telegram_nachricht(f" keine offene Sell-Order")
                 if base_asset in status_fuer_alle:
                     del status_fuer_alle[base_asset]
         
@@ -526,7 +526,7 @@ def webhook():
                 else:
                     logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
                     status_fuer_alle[base_asset] = "Fehler"
-                    sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
+                    #sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
         except Exception as e:
             status_fuer_alle[base_asset] = "Fehler"
             logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
@@ -541,8 +541,8 @@ def webhook():
                         avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
                         if avg_price > 0:
                             durchschnittspreis = round(avg_price * (1 - 0.002), 6)
-                            sende_telegram_nachricht(f"Fehler in Firebase (Kaufpreis) bei Coin: {base_asset}")
-                            logs.append(f"ℹ️ Durchschnittspreis von BINGX verwendet für {base_asset}")
+                            sende_telegram_nachricht(f"ℹ️ Durchschnittspreis von BINGX verwendet für {base_asset}")
+                            logs.append("Fehler in Firebase (Kaufpreis) bei Coin: {base_asset}")
                         else:
                             logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
                         break
