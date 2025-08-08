@@ -473,7 +473,7 @@ def webhook():
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
             status_fuer_alle.pop(symbol, None)
-            #status_fuer_alle[symbol] = "OK"
+            
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
             status_fuer_alle[symbol] = "Fehler"
