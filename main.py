@@ -215,25 +215,27 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 def sende_telegram_nachricht(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         return "Telegram nicht konfiguriert"
-
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text
     }
+    response = requests.post(url, json=payload)
+    return f"Telegram Antwort: {response.status_code}"
 
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        response.raise_for_status()  # wirft Exception bei HTTP Fehlercodes
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
 
-        data = response.json()
-        if data.get("ok"):
-            return "Telegram Nachricht erfolgreich gesendet"
-        else:
-            return f"Telegram API Fehler: {data}"
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
 
-    except requests.exceptions.RequestException as e:
-        return f"Fehler beim Senden der Telegram Nachricht: {e}"
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
+
 def get_open_orders(api_key, secret_key, symbol):
     timestamp = int(time.time() * 1000)
     params = f"symbol={symbol}&timestamp={timestamp}"
@@ -337,6 +339,7 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
 def webhook():
     global saved_usdt_amounts
     global status_fuer_alle
+
     
     data = request.json
     logs = []
@@ -430,7 +433,7 @@ def webhook():
                     saved_usdt_amounts[base_asset] = usdt_amount
                     logs.append(f"Ordergröße aus Firebase für {base_asset} gelesen: {usdt_amount}")
                 else:
-                    logs.append(f"FEHLER: Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
+                    logs.append(f"⚠️ Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
                     sende_telegram_nachricht(f"keine Ordergrösse gefunden bei Coin: {base_asset}")
             else:
                 usdt_amount = saved_usdt_amount
@@ -472,85 +475,51 @@ def webhook():
     if firebase_secret and not open_sell_orders_exist:
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
-            status_fuer_alle.pop(symbol, None)
-            sende_telegram_nachricht(f"keine offene Sell-Limit-Order")
-        
-            
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
-            status_fuer_alle[symbol] = "Fehler"
-            sende_telegram_nachricht(f" HINWEIS: Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
+            sende_telegram_nachricht(f"Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
 
-   # 7. Kaufpreis speichern + Status ggf. auf OK setzen
+    # 7. Kaufpreis speichern
     if firebase_secret and price_from_webhook:
         try:
-            result = firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret)
-            logs.append(result)
-
+            logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            status_fuer_alle[symbol] = "Fehler"
-            sende_telegram_nachricht(f"HINWEIS Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
+            sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
-  # 8. Durchschnittspreis bestimmen – abhängig vom Status
+    # 8. Durchschnittspreis bestimmen – zuerst aus Firebase, sonst avgPrice von BingX
     durchschnittspreis = None
     kaufpreise = []
-    
+
+    # 1. Versuch: Firebase lesen
     try:
-        aktueller_status = status_fuer_alle.get(symbol)
-    
-        if aktueller_status == "Fehler":
-            # Direkter BingX-Fallback
-            logs.append(f"Status für {base_asset} ist 'Fehler' → direkt BingX-Fallback verwenden.")
-            try:
-                for pos in positions_raw:
-                    if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                        avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                        if avg_price > 0:
-                            durchschnittspreis = round(avg_price * (1 - 0.002), 6)
-                            logs.append(f"[Direkter Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
-                            sende_telegram_nachricht(f"HINWEIS Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
-                        else:
-                            logs.append("[Direkter Fallback] Kein gültiger avgPrice in Position vorhanden.")
-                            sende_telegram_nachricht(f"FEHLER: Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
-                        break
-            except Exception as e:
-                logs.append(f"[Direkter Fallback Fehler] avgPrice konnte nicht berechnet werden: {e}")
-                status_fuer_alle[symbol] = "Fehler"
-        else:
-            # 1. Versuch: Firebase-Durchschnitt
-            if firebase_secret:
-                kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
-                durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
-                if durchschnittspreis:
-                    logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
-                else:
-                    logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
-                    status_fuer_alle[symbol] = "Fehler"
-                    sende_telegram_nachricht(f"HINWEIS: Keine gültigen Kaufpreise auf BINGX gefunden für {base_asset}: {e}")
-    
-            # 2. Fallback BingX, wenn Firebase nichts liefert
-            if not durchschnittspreis or durchschnittspreis == 0:
-                try:
-                    for pos in positions_raw:
-                        if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                            avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                            if avg_price > 0:
-                                durchschnittspreis = round(avg_price * (1 - 0.002), 6)
-                                logs.append(f"[Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
-                                sende_telegram_nachricht(f"HINWEIS: Durchschnitspreis von BINGX verwendet für {base_asset}: {e}")
-                                
-                            else:
-                                logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
-                                sende_telegram_nachricht(f"FEHLER: Kein gültiger avgPrice auf BINGX für {base_asset} gefunden: {e}")
-                            break
-                except Exception as e:
-                    logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
-                    sende_telegram_nachricht(f"FEHLER: Fallback auf BINGX fehlgeschlagen für {base_asset} gefunden: {e}")
-                    status_fuer_alle[symbol] = "Fehler"
-    
+        if firebase_secret:
+            kaufpreise = firebase_lese_kaufpreise(base_asset, firebase_secret)
+            durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
+            if durchschnittspreis:
+                logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+            else:
+                logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
+                sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}: {e}")
     except Exception as e:
-        logs.append(f"[Fehler] Durchschnittspreis-Berechnung fehlgeschlagen: {e}")
+        logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
+        sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
+
+    # 2. Fallback: avgPrice aus BingX-Position, wenn Firebase-Durchschnitt fehlt oder Fehler
+    if not durchschnittspreis or durchschnittspreis == 0:
+        try:
+            for pos in positions_raw:
+                if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                    if avg_price > 0:
+                        durchschnittspreis = round(avg_price * (1 - 0.002), 6)
+                        sende_telegram_nachricht(f"Fehler in Firebase (Kaufpreis) bei Coin: {base_asset}")
+                        logs.append(f"[Fallback] avgPrice aus Position verwendet: {durchschnittspreis}")
+                    else:
+                        logs.append("[Fallback] Kein gültiger avgPrice in Position vorhanden.")
+                    break
+        except Exception as e:
+            logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
 
     # 9. Alte Sell-Limit-Orders löschen
     try:
@@ -637,10 +606,8 @@ def webhook():
         "stop_loss_price": stop_loss_price if liquidation_price else None,
         "stop_loss_response": stop_loss_response if liquidation_price else None,
         "saved_usdt_amount": saved_usdt_amounts,      
-        "status_fuer_alle": status_fuer_alle,
         "logs": logs
     })
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
