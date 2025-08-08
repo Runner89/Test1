@@ -437,6 +437,7 @@ def webhook():
                     if usdt_amount > 0:
                         saved_usdt_amounts[base_asset] = usdt_amount
                         logs.append(f"Ordergröße aus Firebase für {base_asset} gelesen: {usdt_amount}")
+                        sende_telegram_nachricht(f"ℹ️  Ordergrösse aus Firebase verwendet bei Coin: {base_asset}")
                     else:
                         logs.append(f"❌ Keine Ordergröße in Variable oder Firebase für {base_asset} gefunden.")
                         sende_telegram_nachricht(f"❌ keine Ordergrösse gefunden bei Coin: {base_asset}")
