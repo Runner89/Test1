@@ -512,6 +512,7 @@ def webhook():
                     if avg_price > 0:
                         durchschnittspreis = round(avg_price * (1 - 0.002), 6)
                         logs.append(f"[Fallback wegen Fehler-Status] avgPrice aus Position verwendet: {durchschnittspreis}")
+                        sende_telegram_nachricht(f"ℹ️ Durchschnittspreis von BINGX verwendet für {base_asset}")
                     break
         except Exception as e:
             logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
