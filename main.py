@@ -484,6 +484,7 @@ def webhook():
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
+            status_fuer_alle[base_asset] = "Fehler"
             sende_telegram_nachricht(f"Fehler beim Löschen der Kaufpreise {base_asset}: {e}")
 
     # 7. Kaufpreis speichern
@@ -492,6 +493,7 @@ def webhook():
             logs.append(firebase_speichere_kaufpreis(base_asset, float(price_from_webhook), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            status_fuer_alle[base_asset] = "Fehler"
             sende_telegram_nachricht(f"Fehler beim Speichern des Kaufpreises {base_asset}: {e}")
 
     # 8. Durchschnittspreis bestimmen – zuerst Status prüfen
@@ -520,10 +522,12 @@ def webhook():
                     logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
                 else:
                     logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
+                    status_fuer_alle[base_asset] = "Fehler"
                     sende_telegram_nachricht(f"Keine gültigen Kaufpreise gefunden {base_asset}")
         except Exception as e:
             status_fuer_alle[base_asset] = "Fehler"
             logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
+            status_fuer_alle[base_asset] = "Fehler"
             sende_telegram_nachricht(f"Firebase-Zugriff fehlgeschlagen {base_asset}: {e}")
 
         # Falls kein Durchschnitt aus Firebase, dann Fallback (wie bisher)
