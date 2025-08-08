@@ -409,9 +409,12 @@ def webhook():
 
             # Falls keine offene Sell-Limit-Order existiert, Status löschen und OK setzen
             if not open_sell_orders_exist:
+                sende_telegram_nachricht(f" keine offene Sell-Order")
                 if base_asset in status_fuer_alle:
                     del status_fuer_alle[base_asset]
+        
                 status_fuer_alle[base_asset] = "OK"
+                
 
                 logs.append(firebase_loesche_ordergroesse(base_asset, firebase_secret))
                 # Lokale Ordergröße ebenfalls aus dem Cache entfernen
