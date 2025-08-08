@@ -473,7 +473,7 @@ def webhook():
         try:
             logs.append(firebase_loesche_kaufpreise(base_asset, firebase_secret))
             status_fuer_alle.pop(symbol, None)
-            status_fuer_alle[symbol] = "OK"
+            sende_telegram_nachricht(f"keine offene Sell-Limit-Order")
         
             
         except Exception as e:
