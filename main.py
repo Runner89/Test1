@@ -7,8 +7,8 @@
 #Verfügbares Guthaben wird ermittelt
 #Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
 #Ordergrösse wird in Variable gespeichert, Firebase wird nur als Backup verwendet
-#StopLoss 2% über Liquidationspreis
-#Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.02% für die Berechnung der Sell-Limit-Order verwendet.
+#StopLoss 3% über Liquidationspreis
+#Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
 
 ###### Funktioniert nur, wenn alle Order die gleiche Grösse haben (Durchschnittspreis stimmt sonst nicht in Firebase) #####
@@ -26,8 +26,13 @@
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
 #    "pyramiding": 8,
-#    "sicherheit": 96
+#    "sicherheit": 96 Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
 #}
+#    Berechnung Ordergrösse
+#    verfügbares Guthaben x leverage
+#    - (Sicherheit x leverage)
+#    Eregbnis / pyramiding
+
 
 from flask import Flask, request, jsonify
 import time
@@ -477,12 +482,12 @@ def webhook():
                 logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
 
         if liquidation_price:
-            stop_loss_price = round(liquidation_price * 1.02, 6)
+            stop_loss_price = round(liquidation_price * 1.03, 6)
             logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
         else:
             stop_loss_price = None
             logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
-            sende_telegram_nachricht(botname, f"ℹ️ Liquidationspreis nicht verfügbar für Bot: {botname}")
+            sende_telegram_nachricht(botname, f"❌ Liquidationspreis nicht verfügbar für Bot: {botname}")
     except Exception as e:
         sell_quantity = 0
         stop_loss_price = None
@@ -516,7 +521,7 @@ def webhook():
                 if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                     avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
                     if avg_price > 0:
-                        durchschnittspreis = round(avg_price * (1 - 0.002), 6)
+                        durchschnittspreis = round(avg_price * (1 - 0.003), 6)
                         logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
                         sende_telegram_nachricht(botname, f"ℹ️ Durchschnittspreis von BINGX verwendet für Bot: {botname}")
                     break
