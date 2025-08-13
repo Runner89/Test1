@@ -98,6 +98,28 @@ def get_symbol_info(symbol):
             }
     raise Exception(f"Symbol {symbol} nicht gefunden")
 
+def get_position(api_key, secret_key, symbol, position_side):
+    timestamp = int(time.time() * 1000)
+    params_dict = {
+        "symbol": symbol,
+        "timestamp": timestamp
+    }
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    headers = {
+        "X-BX-APIKEY": api_key
+    }
+
+    response = requests.get(f"{BASE_URL}{POSITION_ENDPOINT}", headers=headers, params=params_dict)
+    data = response.json()
+
+    for pos in data.get("data", []):
+        if pos["positionSide"].upper() == position_side.upper():
+            return pos
+    return None
+
 def round_quantity(symbol, quantity):
     info = get_symbol_info(symbol)
     lot = info["lotSize"]
