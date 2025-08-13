@@ -76,31 +76,30 @@ def get_current_price(symbol: str):
     else:
         return None
 
-def place_market_order(api_key, secret_key, symbol, amount, side, hedge_mode=False, reduce_only=False, is_contract_qty=False):
+def place_market_order(api_key, secret_key, symbol, quantity, side, position_side, reduce_only=False, is_contract_qty=False):
     price = get_current_price(symbol)
     if price is None:
         return {"code": 99999, "msg": "Failed to get current price"}
 
+    # Falls Menge in USDT angegeben ist, umrechnen
     if not is_contract_qty:
-        quantity = round(amount / price, 6)
+        quantity = round(quantity / price, 6)
     else:
-        quantity = round(amount, 6)
+        quantity = round(quantity, 6)
 
     timestamp = int(time.time() * 1000)
 
     params_dict = {
         "symbol": symbol,
-        "side": side.upper(),  # "BUY" oder "SELL"
+        "side": side.upper(),             # "BUY" oder "SELL"
         "type": "MARKET",
         "quantity": quantity,
+        "positionSide": position_side.upper(),  # "LONG" oder "SHORT"
         "timestamp": timestamp
     }
 
-    # Nur in Hedge Mode setzen
-    if hedge_mode:
-        params_dict["positionSide"] = "LONG" if side.upper() == "BUY" else "SHORT"
-        if reduce_only:
-            params_dict["reduceOnly"] = "true"
+    if reduce_only:
+        params_dict["reduceOnly"] = "true"  # String!
 
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
     signature = generate_signature(secret_key, query_string)
@@ -114,6 +113,7 @@ def place_market_order(api_key, secret_key, symbol, amount, side, hedge_mode=Fal
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
+
 
 
     # Nur in Hedge Mode setzen
@@ -485,7 +485,8 @@ def webhook():
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
                 if position_size > 0:
                     # Hedge Mode → positionSide setzen und reduceOnly aktivieren
-                    close_long = place_market_order(api_key, secret_key, "BTC-USDT", position_size, side="SELL", hedge_mode=True, reduce_only=True)
+                    # Hedge Mode → SELL mit positionSide="LONG"
+                    close_long = place_market_order(api_key, secret_key, symbol, position_size, side="SELL", position_side="LONG", reduce_only=True, is_contract_qty=True)
 
                     logs.append(f"LONG Position geschlossen: {close_long}")
         
