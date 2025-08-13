@@ -546,18 +546,16 @@ def webhook():
             except Exception as e:
                 logs.append(f"Fehler beim Löschen der Orders: {e}")
         
-            # 2. Position(en) schließen
-            try:          
-                position_side = "LONG"  # oder "SHORT", je nachdem welche Position offen ist
-                # Positionsgröße holen
-                position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-                
-                # Positionsgröße runden
+            # 2. Position(en) schließen 
+            try:   
+                position_side = "LONG"
+                position_size, position_info, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
                 qty = round_quantity(symbol, position_size)
-                
+                logs.append(f"Position size: {qty}, Liquidation price: {position_info['liquidationPrice']}")
+            
                 # Position schließen
                 close_position(api_key, secret_key, symbol, position_side, qty, logs)
-                
+            
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
                             
