@@ -359,7 +359,7 @@ def berechne_durchschnittspreis(käufe):
     return round(gesamtwert / gesamtmenge, 6)
 
 def update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret):
-    url = f"https://your-firebase-project.firebaseio.com/{botname}/ordergroesse.json?auth={firebase_secret}"
+    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
     data = usdt_amount  # Einfach den Wert speichern
     response = requests.put(url, json=data)  # PUT überschreibt den alten Wert
     if response.status_code == 200:
