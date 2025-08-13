@@ -100,7 +100,9 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
         # 1. Serverzeit von BingX holen
         server_time_resp = requests.get(f"{BASE_URL}/api/v1/common/time")
         server_time_resp.raise_for_status()
-        server_time = server_time_resp.json()["time"]
+        server_time = server_time_resp.json().get("serverTime")
+        if server_time is None:
+            server_time = server_time_resp.json().get("time")
 
         # 2. Parameter vorbereiten
         params = {
