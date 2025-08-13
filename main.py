@@ -484,7 +484,7 @@ def webhook():
                     logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
                     logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
 
-            else:
+            else
                  # Wenn offene Sell-Limit-Order existiert, multipliziere mit order_factor
                 if saved_usdt_amount is not None and saved_usdt_amount > 0:
                     usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0) * order_factor
@@ -561,7 +561,7 @@ def webhook():
             status_fuer_alle[botname] = "Fehler"
 
     # 7.2 Update Ordergrösse 
-    if firebase_secret and price_from_webhook:
+      if firebase_secret and price_from_webhook:
         try:
             logs.append(update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret))
         except Exception as e:
