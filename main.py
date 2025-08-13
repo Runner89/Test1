@@ -528,11 +528,11 @@ def webhook():
     # 7. Kaufpreis speichern
     
     if firebase_secret and price_from_webhook:
-    try:
-        logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
-    except Exception as e:
-        logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-        status_fuer_alle[botname] = "Fehler"
+        try:
+            logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            status_fuer_alle[botname] = "Fehler"
 
     # 8. Durchschnittspreis bestimmen
     durchschnittspreis = None
