@@ -296,19 +296,28 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
     response = requests.delete(url)
     return f"Ordergröße für {botname} gelöscht, Status: {response.status_code}"
 
-def firebase_speichere_kaufpreis(botname, price, firebase_secret):
-    try:
-        menge = usdt_amount / price if price > 0 else 0
-        kaufdaten = {
-            "price": round(price, 6),
-            "amount": round(menge, 6)
-        }
-        # Beispiel: POST an Firebase
-        url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-        r = requests.post(url, json=kaufdaten)
-        return f"Kaufpreis & Menge gespeichert: {kaufdaten}, Antwort: {r.text}"
-    except Exception as e:
-        return f"Fehler beim Speichern von Kaufpreis & Menge: {e}"
+def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
+    import requests
+
+    # Deine Firebase-URL, eventuell aus einer Konstanten
+    FIREBASE_URL = "https://dein-projekt.firebaseio.com"
+
+    # Daten, die gespeichert werden sollen
+    data = {
+        "price": price,
+        "usdt_amount": usdt_amount
+    }
+
+    # URL zusammenbauen mit Authentifizierung
+    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
+
+    # HTTP PUT oder POST, je nach Bedarf
+    response = requests.put(url, json=data)
+
+    if response.status_code == 200:
+        return f"Kaufpreis für {botname} erfolgreich gespeichert."
+    else:
+        raise Exception(f"Fehler beim Speichern: {response.text}")
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
@@ -525,8 +534,7 @@ def webhook():
             logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
             status_fuer_alle[botname] = "Fehler"
 
-    # 7. Kaufpreis speichern
-    
+    # 7. Kaufpreis speichern 
     if firebase_secret and price_from_webhook:
         try:
             logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
