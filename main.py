@@ -91,6 +91,43 @@ def round_quantity(symbol, quantity):
     precision = abs(decimal.Decimal(str(lot)).as_tuple().exponent)
     return round(float(quantity), precision)
 
+def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
+    try:
+        # 1. Serverzeit von BingX holen
+        server_time_resp = requests.get(f"{BASE_URL}/api/v1/common/time")
+        server_time_resp.raise_for_status()
+        server_time = server_time_resp.json()["serverTime"]
+
+        # 2. Parameter vorbereiten
+        params = {
+            "symbol": symbol,
+            "side": "SELL" if position_side.upper() == "LONG" else "BUY",
+            "type": "MARKET",
+            "quantity": quantity,
+            "positionSide": position_side.upper(),
+            "reduceOnly": "true",
+            "timestamp": server_time
+        }
+
+        # 3. Signatur erstellen
+        sorted_params = sorted(params.items())
+        query = "&".join(f"{k}={v}" for k, v in sorted_params)
+        params["signature"] = generate_signature(secret_key, query)
+
+        logs.append(f"DEBUG Order-Params: {params}")
+
+        # 4. Request senden (Form-Data, nicht JSON)
+        headers = {
+            "X-BX-APIKEY": api_key,
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+
+        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
+        logs.append(f"{position_side.upper()} Position geschlossen: {response}")
+
+    except Exception as e:
+        logs.append(f"Fehler beim Schließen der Position: {e}")
+
 
 
 def get_current_price(symbol: str):
@@ -507,41 +544,20 @@ def webhook():
                 logs.append(f"Fehler beim Löschen der Orders: {e}")
         
             # 2. Position(en) schließen
-            try:
-                position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
+            try:          
+                position_side = "LONG"
+
+                # Positionsgröße holen
+                position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
+
+                # Positionsgröße runden, falls nötig
                 qty = round_quantity(symbol, position_size)
-            
-                # Parameter als dict anlegen
-                params = {
-                    "symbol": symbol,
-                    "side": "SELL",
-                    "type": "MARKET",
-                    "quantity": str(qty),              # als String senden
-                    "positionSide": "LONG",
-                    "reduceOnly": "true",               # lowercase-String
-                    "timestamp": int(time.time() * 1000)
-                }
-            
-                # Query-String für Signatur (alphabetisch sortiert)
-                query = "&".join(f"{k}={params[k]}" for k in sorted(params))
-                signature = generate_signature(secret_key, query)
-            
-                # Jetzt exakt dieselben Parameter + Signatur an BingX schicken
-                params["signature"] = signature
-            
-                logs.append(f"DEBUG Order-Params: {params}")
-            
-                headers = {
-                    "X-BX-APIKEY": api_key,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                }
-            
-                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
-                logs.append(f"LONG Position geschlossen: {response}")
-            
+                
+                # Position schließen
+                close_position(api_key, secret_key, symbol, position_side, qty, logs)
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
-            
+                            
 
         
             # 3. Lokale Variablen & Alarm zurücksetzen
