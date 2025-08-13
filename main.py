@@ -67,6 +67,13 @@ def get_futures_balance(api_key: str, secret_key: str):
     response = requests.get(url, headers=headers)
     return response.json()
 
+def round_quantity(symbol, quantity):
+    # Step Size von BingX-ExchangeInfo laden
+    info = get_symbol_info(symbol)  # Muss exchangeInfo abfragen
+    step_size = float(info['stepSize'])
+    precision = abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
+    return round(quantity, precision)
+
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
     response = requests.get(url)
@@ -483,35 +490,34 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                if float(position_size) > 0:
-                    quantity = round(float(position_size), 6)
-                    timestamp = int(time.time() * 1000)
-            
-                    params_dict = {
-                        "symbol": symbol,
-                        "side": "SELL",
-                        "type": "MARKET",
-                        "quantity": quantity,
-                        "positionSide": "LONG",
-                        "reduceOnly": "true",  # String klein
-                        "timestamp": timestamp
-                    }
-            
-                    # Alphabetisch sortieren
-                    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-                    signature = generate_signature(secret_key, query_string)
-                    params_dict["signature"] = signature
-            
-                    print("DEBUG SEND:", params_dict)  # <-- hier siehst du, was wirklich gesendet wird
-            
-                    url = f"{BASE_URL}{ORDER_ENDPOINT}"
-                    headers = {
-                        "X-BX-APIKEY": api_key,
-                        "Content-Type": "application/json"
-                    }
-            
-                    close_long = requests.post(url, headers=headers, json=params_dict).json()
-                    logs.append(f"LONG Position geschlossen: {close_long}")
+                qty = round_quantity(symbol, float(position_size))
+                
+                close_long = place_market_order(
+                    api_key,
+                    secret_key,
+                    symbol,
+                    qty,
+                    side="SELL",
+                    position_side="LONG",
+                    reduce_only=True,
+                    is_contract_qty=True
+                )
+        
+                # Alphabetisch sortieren
+                query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+                signature = generate_signature(secret_key, query_string)
+                params_dict["signature"] = signature
+        
+                print("DEBUG SEND:", params_dict)  # <-- hier siehst du, was wirklich gesendet wird
+        
+                url = f"{BASE_URL}{ORDER_ENDPOINT}"
+                headers = {
+                    "X-BX-APIKEY": api_key,
+                    "Content-Type": "application/json"
+                }
+        
+                close_long = requests.post(url, headers=headers, json=params_dict).json()
+                logs.append(f"LONG Position geschlossen: {close_long}")
             
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
