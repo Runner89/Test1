@@ -31,7 +31,7 @@
 #    - (Sicherheit x leverage)
 #    Eregbnis / pyramiding
 
-
+from urllib.parse import urlencode
 from flask import Flask, request, jsonify
 import time
 import hmac
