@@ -297,10 +297,18 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
     return f"Ordergröße für {botname} gelöscht, Status: {response.status_code}"
 
 def firebase_speichere_kaufpreis(botname, price, firebase_secret):
-    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-    data = {"price": price}
-    response = requests.post(url, json=data)
-    return f"Kaufpreis gespeichert für {botname}: {price}, Status: {response.status_code}"
+    try:
+        menge = usdt_amount / price if price > 0 else 0
+        kaufdaten = {
+            "price": round(price, 6),
+            "amount": round(menge, 6)
+        }
+        # Beispiel: POST an Firebase
+        url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
+        r = requests.post(url, json=kaufdaten)
+        return f"Kaufpreis & Menge gespeichert: {kaufdaten}, Antwort: {r.text}"
+    except Exception as e:
+        return f"Fehler beim Speichern von Kaufpreis & Menge: {e}"
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
@@ -310,19 +318,34 @@ def firebase_loesche_kaufpreise(botname, firebase_secret):
     return f"Fehler beim Löschen der Kaufpreise für {botname}: Status {response.status_code}"
 
 def firebase_lese_kaufpreise(botname, firebase_secret):
-    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        return []
-    data = response.json()
-    if not data:
-        return []
-    return [eintrag.get("price") for eintrag in data.values() if isinstance(eintrag, dict) and "price" in eintrag]
-
+    try:
+            url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
+            r = requests.get(url)
+            daten = r.json()
+            if not daten:
+                return []
+            # Werte in Liste umwandeln
+            return [{"price": float(v.get("price", 0)), "amount": float(v.get("amount", 0))} for v in daten.values()]
+        except Exception as e:
+            return []
 
 def berechne_durchschnittspreis(preise):
-    preise = [float(p) for p in preise if isinstance(p, (int, float, str)) and str(p).replace('.', '', 1).isdigit()]
-    return round(sum(preise) / len(preise), 6) if preise else None
+     if not käufe:
+        return None
+
+    gesamtwert = 0
+    gesamtmenge = 0
+
+    for kauf in käufe:
+        preis = float(kauf.get("price", 0))
+        menge = float(kauf.get("amount", 0))
+        gesamtwert += preis * menge
+        gesamtmenge += menge
+
+    if gesamtmenge == 0:
+        return None
+
+    return round(gesamtwert / gesamtmenge, 6)
 
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
@@ -503,12 +526,13 @@ def webhook():
             status_fuer_alle[botname] = "Fehler"
 
     # 7. Kaufpreis speichern
+    
     if firebase_secret and price_from_webhook:
-        try:
-            logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            status_fuer_alle[botname] = "Fehler"
+    try:
+        logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
+    except Exception as e:
+        logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+        status_fuer_alle[botname] = "Fehler"
 
     # 8. Durchschnittspreis bestimmen
     durchschnittspreis = None
