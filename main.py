@@ -57,10 +57,12 @@ alarm_counter = {}
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
-   
+
 def get_server_time():
-    response = requests.get(f"{BASE_URL}/api/v1/time").json()
-    return int(response['serverTime'])
+    #"""Serverzeit in Millisekunden holen"""
+    resp = requests.get(f"{BASE_URL}/api/v1/common/time")
+    resp.raise_for_status()
+    return int(resp.json()["time"])
 
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
@@ -96,37 +98,39 @@ def round_quantity(symbol, quantity):
     return round(float(quantity), precision)
 
 def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
-   def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
-        # Parameter vorbereiten
+        # 1. Serverzeit holen
+        timestamp = get_server_time()
+
+        # 2. Parameter vorbereiten
         params = {
             "symbol": symbol,
-            "side": "SELL" if position_side.upper() == "LONG" else "BUY",
+            "side": "SELL" if position_side == "LONG" else "BUY",
             "type": "MARKET",
             "quantity": str(quantity),
-            "positionSide": position_side.upper(),
+            "positionSide": position_side,
             "reduceOnly": "true",
-            "timestamp": int(time.time() * 1000)
+            "timestamp": timestamp
         }
 
-        # Alphabetisch sortieren und Query für Signatur erstellen
+        # 3. Signatur erstellen
         sorted_params = sorted(params.items())
-        query = "&".join(f"{k}={v}" for k, v in sorted_params)  # alles als String
-
-        # Signatur erstellen
-        signature = generate_signature(secret_key, query)
-        params["signature"] = signature
+        query = "&".join(f"{k}={v}" for k, v in sorted_params)
+        params["signature"] = generate_signature(secret_key, query)
 
         logs.append(f"DEBUG Order-Params: {params}")
 
-        # Request senden
+        # 4. Request senden
         headers = {
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
         }
-
         response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
-        logs.append(f"{position_side.upper()} Position geschlossen: {response}")
+
+        if response.get("code") == 0:
+            logs.append(f"{position_side.upper()} Position geschlossen: {response}")
+        else:
+            logs.append(f"Fehler beim Schließen der Position: {response}")
 
     except Exception as e:
         logs.append(f"Fehler beim Schließen der Position: {e}")
