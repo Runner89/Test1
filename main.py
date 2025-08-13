@@ -332,10 +332,19 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
         print(f"Firebase Antwort Inhalt: {r.text}")
         daten = r.json()
         if not daten:
-            print("Keine Daten unter kaufpreise/{botname} gefunden")
+            print(f"Keine Daten unter kaufpreise/{botname} gefunden")
             return []
+
         # Werte in Liste umwandeln
-        return [{"price": float(v.get("price", 0)), "usdt_amount": float(v.get("usdt_amount", 0))} for v in daten.values()]
+        kaufpreise = []
+        for v in daten.values():
+            kaufpreise.append({
+                "price": float(v.get("price", 0)),
+                "usdt_amount": float(v.get("usdt_amount", 0)),
+                "timestamp": v.get("timestamp")  # optional
+            })
+        return kaufpreise
+
     except Exception as e:
         print(f"Fehler beim Lesen der Kaufpreise: {e}")
         return []
