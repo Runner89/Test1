@@ -335,7 +335,7 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
             print("Keine Daten unter kaufpreise/{botname} gefunden")
             return []
         # Werte in Liste umwandeln
-        return [{"price": float(v.get("price", 0)), "amount": float(v.get("amount", 0))} for v in daten.values()]
+        return [{"price": float(v.get("price", 0)), "usdt_amount": float(v.get("amount", 0))} for v in daten.values()]
     except Exception as e:
         print(f"Fehler beim Lesen der Kaufpreise: {e}")
         return []
