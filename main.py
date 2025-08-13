@@ -296,27 +296,40 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
     response = requests.delete(url)
     return f"Ordergröße für {botname} gelöscht, Status: {response.status_code}"
 
+import requests
+import time
+
 def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
-    import requests
-    import time
+    """
+    Speichert einen Kaufpreis-Eintrag in Firebase unter /kaufpreise/{botname}.
+    Stellt sicher, dass price, usdt_amount und timestamp korrekt als float/int gespeichert werden.
+    """
+    try:
+        # Absichern, dass price und usdt_amount Zahlen sind
+        price = float(price)
+        usdt_amount = float(usdt_amount)
+        timestamp = int(time.time())
 
-    data = {
-        "price": float(price),
-        "usdt_amount": float(usdt_amount),
-        "timestamp": int(time.time())
-    }
+        data = {
+            "price": price,
+            "usdt_amount": usdt_amount,
+            "timestamp": timestamp
+        }
 
-    print(f"[DEBUG] Sende Daten an Firebase für {botname}: {data}")
-
-    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-    response = requests.post(url, json=data)
-
-    print(f"[DEBUG] Firebase Antwort Status: {response.status_code}, Text: {response.text}")
-
-    if response.status_code != 200:
-        raise Exception(f"Fehler beim Speichern: {response.text}")
-
-    return f"Kaufpreis für {botname} erfolgreich gespeichert."
+        url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
+        
+        # Debug Logging
+        print(f"[DEBUG] Sende Daten an Firebase: {data}")
+        
+        response = requests.post(url, json=data)
+        
+        if response.status_code == 200:
+            print(f"[Firebase] Kaufpreis erfolgreich gespeichert: {data}")
+        else:
+            print(f"[Firebase] Fehler beim Speichern: {response.status_code}, {response.text}")
+    
+    except Exception as e:
+        print(f"[ERROR] Fehler beim Speichern des Kaufpreises: {e}")
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
