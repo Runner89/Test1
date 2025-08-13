@@ -75,7 +75,7 @@ def round_quantity(symbol, quantity):
     return round(quantity, precision)
 
 def get_symbol_info(symbol):
-    url = f"{BASE_URL}/api/v1/market/getContract"
+    url = f"{BASE_URL}/api/v1/market/getAllContracts"
     resp = requests.get(url)
     data = resp.json()
 
@@ -86,12 +86,13 @@ def get_symbol_info(symbol):
         if item["symbol"] == symbol:
             return {
                 "symbol": item["symbol"],
-                "stepSize": float(item["stepSize"]),
+                "stepSize": float(item["lotSize"]),  # bei BingX heißt es oft lotSize
                 "tickSize": float(item["tickSize"]),
                 "minQty": float(item["minQty"]),
                 "maxQty": float(item["maxQty"])
             }
     raise Exception(f"Symbol {symbol} nicht gefunden")
+
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
