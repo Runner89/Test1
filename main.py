@@ -561,6 +561,7 @@ def webhook():
         try:
             if firebase_secret:
                 kaufpreise = firebase_lese_kaufpreise(botname, firebase_secret)
+                logs.append(f"[Firebase] Gelesene Kaufpreise Rohdaten: {kaufpreise}")
                 durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
                 if durchschnittspreis:
                     logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
