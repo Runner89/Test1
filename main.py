@@ -319,15 +319,15 @@ def firebase_loesche_kaufpreise(botname, firebase_secret):
 
 def firebase_lese_kaufpreise(botname, firebase_secret):
     try:
-            url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-            r = requests.get(url)
-            daten = r.json()
-            if not daten:
-                return []
-            # Werte in Liste umwandeln
-            return [{"price": float(v.get("price", 0)), "amount": float(v.get("amount", 0))} for v in daten.values()]
-        except Exception as e:
+        url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
+        r = requests.get(url)
+        daten = r.json()
+        if not daten:
             return []
+        # Werte in Liste umwandeln
+        return [{"price": float(v.get("price", 0)), "amount": float(v.get("amount", 0))} for v in daten.values()]
+    except Exception as e:
+        return []
 
 def berechne_durchschnittspreis(preise):
      if not käufe:
