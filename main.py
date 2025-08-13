@@ -461,6 +461,7 @@ def webhook():
 
     
     ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
+    os._exit(0)
     
     # Ausgabe der Ergebnisse
     print(ergebnis["logs"])
