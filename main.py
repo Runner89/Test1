@@ -451,8 +451,7 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
     usdt_factor = float(data.get("usdt_factor", 1))
-    action = data.get("action", "").lower()
-    side2 = data.get("side", "").lower() 
+    action = data.get("action", "").lower() 
     
 
     if not api_key or not secret_key:
@@ -515,15 +514,30 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
     
+        # 2. Offene Orders abrufen
+        open_orders = {}
+        try:
+            open_orders = get_open_orders(api_key, secret_key, symbol)
+            logs.append(f"Open Orders: {open_orders}")
+        except Exception as e:
+            logs.append(f"Fehler bei Orderprüfung: {e}")
+            sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
+    
         # 3. Ordergröße ermitteln (Compounding-Logik)
         usdt_amount = 0
-
-        # Prüfen, ob es die erste Kauforder ist anhand Webhook side2
-        is_first_order = data.get("side2", "").lower() == "long"
-
-        if is_first_order:
+        open_sell_orders_exist = False
+        
+        # Prüfen, ob es offene SELL-Limit Orders gibt
+        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+            for order in open_orders.get("data", {}).get("orders", []):
+                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                    open_sell_orders_exist = True
+                    break
+        
+        # Wenn keine offene Sell-Limit-Order existiert → erste Order
+        if not open_sell_orders_exist:
             status_fuer_alle[botname] = "OK"
-            alarm_counter[botname] = alarm_counter.get(botname, -1) + 1
+            alarm_counter[botname] = -1
         
             #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
         
@@ -565,7 +579,7 @@ def webhook():
         # 4. Market-Order ausführen
         logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
         order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
-        alarm_counter[botname] = alarm_counter.get(botname, -1) + 1
+        alarm_counter[botname] += 1
         logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
         time.sleep(2)
         logs.append(f"Market-Order Antwort: {order_response}")
@@ -594,7 +608,7 @@ def webhook():
             sende_telegram_nachricht(botname, f"Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
     
         # 6. Kaufpreise ggf. löschen
-        if firebase_secret and not is_first_order:
+        if firebase_secret and not open_sell_orders_exist:
             try:
                 logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
             except Exception as e:
