@@ -31,7 +31,7 @@
 #    - (Sicherheit x leverage)
 #    Eregbnis / pyramiding
 
-from urllib.parse import urlencode
+
 from flask import Flask, request, jsonify
 import time
 import hmac
@@ -104,42 +104,24 @@ def round_quantity(symbol, quantity):
     precision = abs(decimal.Decimal(str(lot)).as_tuple().exponent)
     return round(float(quantity), precision)
 
-def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
-    try:
-        # 1. Aktuelle Zeit in ms
-        timestamp = int(time.time() * 1000)
+# --- Position schließen ---
+def close_position(api_key, secret_key, symbol, position_side):
+    position = get_position(api_key, secret_key, symbol, position_side)
+    if not position or float(position["positionAmt"]) == 0:
+        return {"code": 0, "msg": "Keine offene Position zum Schließen"}
 
-        # 2. Parameter vorbereiten
-        params = {
-            "symbol": symbol,
-            "side": "SELL" if position_side == "LONG" else "BUY",
-            "type": "MARKET",
-            "quantity": str(quantity),
-            "positionSide": position_side,
-            "reduceOnly": "true",
-            "timestamp": timestamp
-        }
+    qty = abs(float(position["positionAmt"]))
+    side = "SELL" if position_side.upper() == "LONG" else "BUY"
 
-        # 3. Signatur erstellen (URL-encoded Query)
-        query_string = urlencode(sorted(params.items()))
-        params["signature"] = generate_signature(secret_key, query_string)
-
-        logs.append(f"DEBUG Order-Params: {params}")
-
-        # 4. Request senden
-        headers = {
-            "X-BX-APIKEY": api_key,
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-
-        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params)
-        response_data = response.json()
-        logs.append(f"{position_side.upper()} Position geschlossen: {response_data}")
-
-    except Exception as e:
-        logs.append(f"Fehler beim Schließen der Position: {e}")
-
-
+    return place_market_order(
+        api_key=api_key,
+        secret_key=secret_key,
+        symbol=symbol,
+        quantity=qty,
+        side=side,
+        position_side=position_side,
+        reduce_only=True
+    )
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -555,20 +537,11 @@ def webhook():
                 logs.append(f"Fehler beim Löschen der Orders: {e}")
         
             # 2. Position(en) schließen 
-            try:   
-                position_side = "LONG"  # oder "SHORT", je nachdem welche Position offen ist
-            
-                # Positionsgröße holen
-                position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-            
-                # Positionsgröße runden
-                qty = round_quantity(symbol, position_size)
-            
-                # Position schließen
-                close_position(api_key, secret_key, symbol, position_side, qty, logs)
-            
-            except Exception as e:
-                logs.append(f"Fehler beim Schließen der Position: {e}")
+            symbol = data["symbol"]
+            position_side = data["position_side"]
+            result = close_position(api_key, secret_key, symbol, position_side)
+            return jsonify(result)
+            return jsonify({"msg": "Unknown action"}), 400
                             
 
         
