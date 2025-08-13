@@ -357,6 +357,15 @@ def berechne_durchschnittspreis(käufe):
         return None
 
     return round(gesamtwert / gesamtmenge, 6)
+
+def update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret):
+    url = f"https://your-firebase-project.firebaseio.com/{botname}/ordergroesse.json?auth={firebase_secret}"
+    data = usdt_amount  # Einfach den Wert speichern
+    response = requests.put(url, json=data)  # PUT überschreibt den alten Wert
+    if response.status_code == 200:
+        print(f"Ordergröße erfolgreich aktualisiert: {usdt_amount}")
+    else:
+        print(f"Fehler beim Aktualisieren der Ordergröße: {response.text}")
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
@@ -374,6 +383,8 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
         "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
+
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -404,7 +415,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    
+    order_factor = float(data.get("order_factor", 1))  # Default = 1, falls nicht angegeben
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
@@ -473,11 +484,16 @@ def webhook():
                     logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
                     logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
 
-            saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
-
+            else
+                 # Wenn offene Sell-Limit-Order existiert, multipliziere mit order_factor
+                if saved_usdt_amount is not None and saved_usdt_amount > 0:
+                    usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0) * order_factor
+                    saved_usdt_amounts[botname] = usdt_amount
+                    logs.append(f"Offene Sell-Limit-Order existiert, Ordergröße mit Faktor multipliziert: {usdt_amount}")
+                    
             if not saved_usdt_amount or saved_usdt_amount == 0:
                 try:
-                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
+                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) * order_factor or 0
                     if usdt_amount > 0:
                         saved_usdt_amounts[botname] = usdt_amount
                         logs.append(f"Ordergröße aus Firebase für {botname} gelesen: {usdt_amount}")
@@ -542,6 +558,14 @@ def webhook():
             logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            status_fuer_alle[botname] = "Fehler"
+
+    # 7.2 Update Ordergrösse 
+      if firebase_secret and price_from_webhook:
+        try:
+            logs.append(update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret)
+        except Exception as e:
+            logs.append(f"Fehler beim Update der Ordergrösse: {e}")
             status_fuer_alle[botname] = "Fehler"
 
     # 8. Durchschnittspreis bestimmen
