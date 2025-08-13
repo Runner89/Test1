@@ -97,17 +97,10 @@ def round_quantity(symbol, quantity):
 
 def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
-        # 1. Serverzeit von BingX holen
-        server_time_resp = requests.get(f"{BASE_URL}/api/v1/common/time")
-        server_time_resp.raise_for_status()
-        server_time_json = server_time_resp.json()
+        # 1. Lokale Zeit in ms verwenden
+        server_time = int(time.time() * 1000)
 
-        # 2. Zeit extrahieren, fallback falls Feld anders heißt
-        server_time = server_time_json.get("serverTime") or server_time_json.get("time")
-        if server_time is None:
-            raise ValueError(f"Serverzeit konnte nicht ermittelt werden: {server_time_json}")
-
-        # 3. Parameter vorbereiten
+        # 2. Parameter vorbereiten
         params = {
             "symbol": symbol,
             "side": "SELL" if position_side == "LONG" else "BUY",
@@ -118,14 +111,14 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
             "timestamp": server_time
         }
 
-        # 4. Signatur erstellen
+        # 3. Signatur erstellen
         sorted_params = sorted(params.items())
         query = "&".join(f"{k}={v}" for k, v in sorted_params)
         params["signature"] = generate_signature(secret_key, query)
 
         logs.append(f"DEBUG Order-Params: {params}")
 
-        # 5. Request senden
+        # 4. Request senden
         headers = {
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
