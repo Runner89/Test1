@@ -24,7 +24,8 @@
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
 #    "pyramiding": 8,
-#    "sicherheit": 96 Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
+#    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
+#    "usdt_factor": 1.4
 #}
 #    Berechnung Ordergrösse
 #    verfügbares Guthaben x leverage
@@ -58,19 +59,6 @@ alarm_counter = {}
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
-def get_server_time():
-    
-    resp = requests.get(f"{BASE_URL}/api/v1/common/time")
-    resp.raise_for_status()
-    # Je nach API-Version: entweder resp.json()["serverTime"] oder ["time"]
-    data = resp.json()
-    if "serverTime" in data:
-        return int(data["serverTime"])
-    elif "time" in data:
-        return int(data["time"])
-    else:
-        raise ValueError(f"Serverzeit konnte nicht ermittelt werden: {data}")
-
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
     params = f"timestamp={timestamp}"
@@ -79,71 +67,6 @@ def get_futures_balance(api_key: str, secret_key: str):
     headers = {"X-BX-APIKEY": api_key}
     response = requests.get(url, headers=headers)
     return response.json()
-
-import requests, decimal, time
-
-def get_symbol_info(symbol):
-    url = f"{BASE_URL}/openApi/swap/v2/quote/contracts"
-    resp = requests.get(url)
-    data = resp.json()
-    if data.get("code") != 0:
-        raise Exception(f"Fehler beim Laden der Symbolinfos: {data}")
-    for item in data.get("data", []):
-        if item.get("symbol") == symbol:
-            return {
-                "lotSize": float(item.get("lotSize", 0)),
-                "tickSize": float(item.get("tickSize", 0)),
-                "minQty": float(item.get("minQty", 0)),
-                "maxQty": float(item.get("maxQty", 0))
-            }
-    raise Exception(f"Symbol {symbol} nicht gefunden")
-
-def get_position(api_key, secret_key, symbol, position_side):
-    timestamp = int(time.time() * 1000)
-    params_dict = {
-        "symbol": symbol,
-        "timestamp": timestamp
-    }
-    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
-    params_dict["signature"] = signature
-
-    headers = {
-        "X-BX-APIKEY": api_key
-    }
-
-    response = requests.get(f"{BASE_URL}{POSITION_ENDPOINT}", headers=headers, params=params_dict)
-    data = response.json()
-
-    for pos in data.get("data", []):
-        if pos["positionSide"].upper() == position_side.upper():
-            return pos
-    return None
-
-def round_quantity(symbol, quantity):
-    info = get_symbol_info(symbol)
-    lot = info["lotSize"]
-    precision = abs(decimal.Decimal(str(lot)).as_tuple().exponent)
-    return round(float(quantity), precision)
-
-# --- Position schließen ---
-def close_position(api_key, secret_key, symbol, position_side):
-    position = get_position(api_key, secret_key, symbol, position_side)
-    if not position or float(position["positionAmt"]) == 0:
-        return {"code": 0, "msg": "Keine offene Position zum Schließen"}
-
-    qty = abs(float(position["positionAmt"]))
-    side = "SELL" if position_side.upper() == "LONG" else "BUY"
-
-    return place_market_order(
-        api_key=api_key,
-        secret_key=secret_key,
-        symbol=symbol,
-        quantity=qty,
-        side=side,
-        position_side=position_side,
-        reduce_only=True
-    )
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -154,31 +77,69 @@ def get_current_price(symbol: str):
     else:
         return None
 
-def place_market_order(api_key, secret_key, symbol, quantity, side, position_side, reduce_only=False, is_contract_qty=False):
+def close_open_position(api_key, secret_key, symbol, position_side="LONG"):
+    """
+    Schließt die offene Position sofort per Market Order.
+    position_side: "LONG" oder "SHORT"
+    """
+    logs = []
+
+    # 1. Aktuelle Positionsgröße und Liquidationspreis abfragen
+    position_size, _, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs=logs)
+    
+    if position_size == 0:
+        logs.append(f"Keine offene Position für {symbol} ({position_side}) gefunden.")
+        return {"code": 1, "msg": "Keine offene Position", "logs": logs}
+
+    # 2. Market Sell/Buy zum Schließen der Position
+    side = "SELL" if position_side.upper() == "LONG" else "BUY"
+
+    timestamp = int(time.time() * 1000)
+    params_dict = {
+        "symbol": symbol,
+        "side": side,
+        "type": "MARKET",
+        "quantity": round(position_size, 6),
+        "positionSide": position_side.upper(),
+        "timestamp": timestamp
+    }
+
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    try:
+        result = response.json()
+    except Exception as e:
+        result = {"code": -1, "msg": f"Fehler beim Parsen der API-Antwort: {e}", "raw_response": response.text}
+
+    logs.append(f"Schließen der Position: {result}")
+    return {"result": result, "logs": logs}
+
+def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG"):
     price = get_current_price(symbol)
     if price is None:
         return {"code": 99999, "msg": "Failed to get current price"}
 
-    # Falls Menge in USDT angegeben ist, umrechnen
-    if not is_contract_qty:
-        quantity = round(quantity / price, 6)
-    else:
-        quantity = round(quantity, 6)
-
+    quantity = round(usdt_amount / price, 6)
     timestamp = int(time.time() * 1000)
 
     params_dict = {
         "symbol": symbol,
-        "side": side.upper(),             # "BUY" oder "SELL"
+        "side": "BUY",
         "type": "MARKET",
         "quantity": quantity,
-        "positionSide": position_side.upper(),  # "LONG" oder "SHORT"
+        "positionSide": position_side,
         "timestamp": timestamp
     }
 
-    if reduce_only:
-        params_dict["reduceOnly"] = "true"  # String!
-
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
     signature = generate_signature(secret_key, query_string)
     params_dict["signature"] = signature
@@ -188,52 +149,6 @@ def place_market_order(api_key, secret_key, symbol, quantity, side, position_sid
         "X-BX-APIKEY": api_key,
         "Content-Type": "application/json"
     }
-
-    response = requests.post(url, headers=headers, json=params_dict)
-    return response.json()
-
-
-
-    # Nur in Hedge Mode setzen
-    if position_side:
-        params_dict["positionSide"] = position_side.upper()
-
-    if reduce_only:
-        params_dict["reduceOnly"] = "true"  # String, klein geschrieben
-
-    # Signieren
-    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
-    params_dict["signature"] = signature
-
-    url = f"{BASE_URL}{ORDER_ENDPOINT}"
-    headers = {
-        "X-BX-APIKEY": api_key,
-        "Content-Type": "application/json"
-    }
-
-    response = requests.post(url, headers=headers, json=params_dict)
-    return response.json()
-
-    # Nur setzen, wenn reduce_only True ist
-    if reduce_only:
-        params_dict["reduceOnly"] = "true"  # bei vielen APIs klein geschrieben
-
-    # Signatur erstellen
-    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-    signature = generate_signature(secret_key, query_string)
-    params_dict["signature"] = signature
-
-    # API-Request absenden
-    url = f"{BASE_URL}{ORDER_ENDPOINT}"
-    headers = {
-        "X-BX-APIKEY": api_key,
-        "Content-Type": "application/json"
-    }
-
-    response = requests.post(url, headers=headers, json=params_dict)
-    return response.json()
-
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
@@ -535,345 +450,299 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
     usdt_factor = float(data.get("usdt_factor", 1))
-    action = data.get("action", "").lower()
     
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
 
+
+
+  
+
+    
+    ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
+    
+    # Ausgabe der Ergebnisse
+    print(ergebnis["logs"])
+    print(ergebnis["result"])
+        
+
     available_usdt = 0.0
 
-    #falls close im Webhook, dann alle Positionen des coin schliessen
-    if action == "close":
-        try:
-            logs.append(f"Schließe alle offenen Orders und Positionen für {symbol}...")
-        
-            # 1. Offene Orders löschen
-            try:
-                open_orders = get_open_orders(api_key, secret_key, symbol)
-                if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                    for order in open_orders.get("data", {}).get("orders", []):
-                        cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
-                        logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
-            except Exception as e:
-                logs.append(f"Fehler beim Löschen der Orders: {e}")
-        
-            # 2. Position(en) schließen 
-            symbol = data["symbol"]
-            position_side = data["position_side"]
-            result = close_position(api_key, secret_key, symbol, position_side)
-            return jsonify(result)
-            return jsonify({"msg": "Unknown action"}), 400
-                            
-
-        
-            # 3. Lokale Variablen & Alarm zurücksetzen
-            if botname in saved_usdt_amounts:
-                del saved_usdt_amounts[botname]
-                logs.append(f"Lokale Ordergröße für {botname} gelöscht.")
-        
-            status_fuer_alle[botname] = "OK"
-            alarm_counter[botname] = 0
-        
-            # 4. Firebase-Daten löschen
-            try:
-                if firebase_secret:
-                    logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-                    logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
-            except Exception as e:
-                logs.append(f"Fehler beim Löschen aus Firebase: {e}")
-        
-            return jsonify({
-                "error": False,
-                "msg": f"Alle offenen Orders, Positionen, Cache und Alarm-Zähler für {symbol} gelöscht",
-                "logs": logs
-            })
-        except Exception as e:
-            return jsonify({
-                "error": True,
-                "msg": f"Fehler bei close: {e}",
-                "logs": logs
-            }), 500
-
-    else:    
-
-        # 0. USDT-Guthaben vor Order abrufen
-        try:
-            balance_response = get_futures_balance(api_key, secret_key)
-            logs.append(f"Balance Response: {balance_response}")
-            if balance_response.get("code") == 0:
-                
-                balance_data_temp = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
-                available_usdt = balance_data_temp * leverageB
-                logs.append(f"Freies USDT Guthaben: {available_usdt}")
-            else:
-                logs.append("Fehler beim Abrufen der Balance.")
-        except Exception as e:
-            logs.append(f"Fehler bei Balance-Abfrage: {e}")
-            available_usdt = None
-    
-        # 1. Hebel setzen
-        try:
-            logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
-            leverage_response = set_leverage(api_key, secret_key, symbol, pyramiding, position_side)
-            logs.append(f"Hebel gesetzt: {leverage_response}")
-        except Exception as e:
-            logs.append(f"Fehler beim Setzen des Hebels: {e}")
-    
-        # 2. Offene Orders abrufen
-        open_orders = {}
-        try:
-            open_orders = get_open_orders(api_key, secret_key, symbol)
-            logs.append(f"Open Orders: {open_orders}")
-        except Exception as e:
-            logs.append(f"Fehler bei Orderprüfung: {e}")
-            sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
-    
-        # 3. Ordergröße ermitteln (Compounding-Logik)
-        usdt_amount = 0
-        open_sell_orders_exist = False
-        
-        # Prüfen, ob es offene SELL-Limit Orders gibt
-        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-            for order in open_orders.get("data", {}).get("orders", []):
-                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                    open_sell_orders_exist = True
-                    break
-        
-        # Wenn keine offene Sell-Limit-Order existiert → erste Order
-        if not open_sell_orders_exist:
-            status_fuer_alle[botname] = "OK"
-            alarm_counter[botname] = -1
-        
-            #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-        
-            if botname in saved_usdt_amounts:
-                del saved_usdt_amounts[botname]
-                logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
-        
-            if available_usdt is not None and pyramiding > 0:
-                # Erste Order bleibt unverändert
-                usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
-                saved_usdt_amounts[botname] = usdt_amount
-                logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
-                
-        
-        # Wenn globale Variable vorhanden → nächste Orders
+    # 0. USDT-Guthaben vor Order abrufen
+    try:
+        balance_response = get_futures_balance(api_key, secret_key)
+        logs.append(f"Balance Response: {balance_response}")
+        if balance_response.get("code") == 0:
+            
+            balance_data_temp = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
+            available_usdt = balance_data_temp * leverageB
+            logs.append(f"Freies USDT Guthaben: {available_usdt}")
         else:
-            saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
-            if saved_usdt_amount and saved_usdt_amount > 0:
-                usdt_amount = saved_usdt_amount * usdt_factor
-                saved_usdt_amounts[botname] = usdt_amount
-                logs.append(f"Nächste Ordergröße mit Faktor {usdt_factor} berechnet: {usdt_amount}")
-               
-            else:
-                # Fallback aus Firebase
-                try:
-                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
-                    if usdt_amount > 0:
-                        saved_usdt_amounts[botname] = usdt_amount * usdt_factor
-                        usdt_amount = saved_usdt_amounts[botname]
-                        logs.append(f"Ordergröße aus Firebase gelesen und mit Faktor {usdt_factor} multipliziert: {usdt_amount}")
-                        sende_telegram_nachricht(botname, f"ℹ️ Ordergröße aus Firebase verwendet bei Bot: {botname}")
-                    else:
-                        logs.append(f"❌ Keine Ordergröße gefunden für {botname}")
-                except Exception as e:
-                    status_fuer_alle[botname] = "Fehler"
-                    logs.append(f"Fehler beim Lesen der Ordergröße aus Firebase: {e}")
-                    sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
+            logs.append("Fehler beim Abrufen der Balance.")
+    except Exception as e:
+        logs.append(f"Fehler bei Balance-Abfrage: {e}")
+        available_usdt = None
+
+    # 1. Hebel setzen
+    try:
+        logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
+        leverage_response = set_leverage(api_key, secret_key, symbol, pyramiding, position_side)
+        logs.append(f"Hebel gesetzt: {leverage_response}")
+    except Exception as e:
+        logs.append(f"Fehler beim Setzen des Hebels: {e}")
+
+    # 2. Offene Orders abrufen
+    open_orders = {}
+    try:
+        open_orders = get_open_orders(api_key, secret_key, symbol)
+        logs.append(f"Open Orders: {open_orders}")
+    except Exception as e:
+        logs.append(f"Fehler bei Orderprüfung: {e}")
+        sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
+
+    # 3. Ordergröße ermitteln (Compounding-Logik)
+    usdt_amount = 0
+    open_sell_orders_exist = False
     
-        # 4. Market-Order ausführen
-        
-        logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
-        order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
-        if order_response.get("code") != 0:
-            logs.append(f"Market-Order konnte nicht platziert werden: {order_response}")
-        alarm_counter[botname] += 1
-        logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
-        time.sleep(2)
-        logs.append(f"Market-Order Antwort: {order_response}")
+    # Prüfen, ob es offene SELL-Limit Orders gibt
+    if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+        for order in open_orders.get("data", {}).get("orders", []):
+            if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                open_sell_orders_exist = True
+                break
     
-        # 5. Positionsgröße und Liquidationspreis ermitteln
-        try:
-            sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+    # Wenn keine offene Sell-Limit-Order existiert → erste Order
+    if not open_sell_orders_exist:
+        status_fuer_alle[botname] = "OK"
+        alarm_counter[botname] = -1
     
-            if sell_quantity == 0:
-                executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
-                if executed_qty_str:
-                    sell_quantity = float(executed_qty_str)
-                    logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
+        #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
     
-            if liquidation_price:
-                stop_loss_price = round(liquidation_price * 1.03, 6)
-                logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
-            else:
-                stop_loss_price = None
-                logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
-                sende_telegram_nachricht(botname, f"❌ Liquidationspreis nicht verfügbar für Bot: {botname}")
-        except Exception as e:
-            sell_quantity = 0
+        if botname in saved_usdt_amounts:
+            del saved_usdt_amounts[botname]
+            logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
+    
+        if available_usdt is not None and pyramiding > 0:
+            # Erste Order bleibt unverändert
+            usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
+            saved_usdt_amounts[botname] = usdt_amount
+            logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
+            
+    
+    # Wenn globale Variable vorhanden → nächste Orders
+    else:
+        saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
+        if saved_usdt_amount and saved_usdt_amount > 0:
+            usdt_amount = saved_usdt_amount * usdt_factor
+            saved_usdt_amounts[botname] = usdt_amount
+            logs.append(f"Nächste Ordergröße mit Faktor {usdt_factor} berechnet: {usdt_amount}")
+           
+        else:
+            # Fallback aus Firebase
+            try:
+                usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
+                if usdt_amount > 0:
+                    saved_usdt_amounts[botname] = usdt_amount * usdt_factor
+                    usdt_amount = saved_usdt_amounts[botname]
+                    logs.append(f"Ordergröße aus Firebase gelesen und mit Faktor {usdt_factor} multipliziert: {usdt_amount}")
+                    sende_telegram_nachricht(botname, f"ℹ️ Ordergröße aus Firebase verwendet bei Bot: {botname}")
+                else:
+                    logs.append(f"❌ Keine Ordergröße gefunden für {botname}")
+            except Exception as e:
+                status_fuer_alle[botname] = "Fehler"
+                logs.append(f"Fehler beim Lesen der Ordergröße aus Firebase: {e}")
+                sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
+
+    # 4. Market-Order ausführen
+    logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
+    order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+    alarm_counter[botname] += 1
+    logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+    time.sleep(2)
+    logs.append(f"Market-Order Antwort: {order_response}")
+
+    # 5. Positionsgröße und Liquidationspreis ermitteln
+    try:
+        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+
+        if sell_quantity == 0:
+            executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
+            if executed_qty_str:
+                sell_quantity = float(executed_qty_str)
+                logs.append(f"[Market Order] Ausgeführte Menge aus order_response genutzt: {sell_quantity}")
+
+        if liquidation_price:
+            stop_loss_price = round(liquidation_price * 1.03, 6)
+            logs.append(f"Stop-Loss-Preis basierend auf Liquidationspreis {liquidation_price}: {stop_loss_price}")
+        else:
             stop_loss_price = None
-            logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
-            sende_telegram_nachricht(botname, f"Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
-    
-        # 6. Kaufpreise ggf. löschen
-        if firebase_secret and not open_sell_orders_exist:
-            try:
-                logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
-            except Exception as e:
-                logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
-                status_fuer_alle[botname] = "Fehler"
-    
-        # 7. Kaufpreis speichern 
-        if firebase_secret and price_from_webhook:
-            try:
-                logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
-            except Exception as e:
-                logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-                status_fuer_alle[botname] = "Fehler"
-    
-        # 8. Durchschnittspreis bestimmen
-        durchschnittspreis = None
-        kaufpreise = []
-    
-        if status_fuer_alle.get(botname) == "Fehler":
-            logs.append(f"Status für {botname} ist Fehler, Fallback auf BingX.")
+            logs.append("Liquidationspreis nicht verfügbar. Kein Stop-Loss-Berechnung möglich.")
+            sende_telegram_nachricht(botname, f"❌ Liquidationspreis nicht verfügbar für Bot: {botname}")
+    except Exception as e:
+        sell_quantity = 0
+        stop_loss_price = None
+        logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
+        sende_telegram_nachricht(botname, f"Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
+
+    # 6. Kaufpreise ggf. löschen
+    if firebase_secret and not open_sell_orders_exist:
+        try:
+            logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Löschen der Kaufpreise: {e}")
+            status_fuer_alle[botname] = "Fehler"
+
+    # 7. Kaufpreis speichern 
+    if firebase_secret and price_from_webhook:
+        try:
+            logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
+        except Exception as e:
+            logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
+            status_fuer_alle[botname] = "Fehler"
+
+    # 8. Durchschnittspreis bestimmen
+    durchschnittspreis = None
+    kaufpreise = []
+
+    if status_fuer_alle.get(botname) == "Fehler":
+        logs.append(f"Status für {botname} ist Fehler, Fallback auf BingX.")
+        try:
+            for pos in positions_raw:
+                if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                    avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                    if avg_price > 0:
+                        durchschnittspreis = round(avg_price * (1 - 0.003), 6)
+                        logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
+                        sende_telegram_nachricht(botname, f"ℹ️ Durchschnittspreis von BINGX verwendet für Bot: {botname}")
+                    break
+        except Exception as e:
+            logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
+    else:
+        try:
+            if firebase_secret:
+                kaufpreise = firebase_lese_kaufpreise(botname, firebase_secret)
+                logs.append(f"[Firebase] Gelesene Kaufpreise Rohdaten: {kaufpreise}")
+                durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
+                if durchschnittspreis:
+                    logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
+                else:
+                    logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
+                    status_fuer_alle[botname] = "Fehler"
+        except Exception as e:
+            status_fuer_alle[botname] = "Fehler"
+            logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
+
+        if not durchschnittspreis or durchschnittspreis == 0:
             try:
                 for pos in positions_raw:
                     if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                         avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
                         if avg_price > 0:
-                            durchschnittspreis = round(avg_price * (1 - 0.003), 6)
-                            logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
+                            durchschnittspreis = round(avg_price * (1 - 0.002), 6)
+                            logs.append(f"Fallback avgPrice verwendet für Bot: {botname}")
                             sende_telegram_nachricht(botname, f"ℹ️ Durchschnittspreis von BINGX verwendet für Bot: {botname}")
+                            status_fuer_alle[botname] = "Fehler"
+                        else:
+                            logs.append("[Fallback] Kein gültiger avgPrice vorhanden.")
                         break
             except Exception as e:
                 logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
-        else:
-            try:
-                if firebase_secret:
-                    kaufpreise = firebase_lese_kaufpreise(botname, firebase_secret)
-                    logs.append(f"[Firebase] Gelesene Kaufpreise Rohdaten: {kaufpreise}")
-                    durchschnittspreis = berechne_durchschnittspreis(kaufpreise or [])
-                    if durchschnittspreis:
-                        logs.append(f"[Firebase] Durchschnittspreis berechnet: {durchschnittspreis}")
-                    else:
-                        logs.append("[Firebase] Keine gültigen Kaufpreise gefunden.")
-                        status_fuer_alle[botname] = "Fehler"
-            except Exception as e:
-                status_fuer_alle[botname] = "Fehler"
-                logs.append(f"[Fehler] Firebase-Zugriff fehlgeschlagen: {e}")
-    
-            if not durchschnittspreis or durchschnittspreis == 0:
-                try:
-                    for pos in positions_raw:
-                        if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                            avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                            if avg_price > 0:
-                                durchschnittspreis = round(avg_price * (1 - 0.002), 6)
-                                logs.append(f"Fallback avgPrice verwendet für Bot: {botname}")
-                                sende_telegram_nachricht(botname, f"ℹ️ Durchschnittspreis von BINGX verwendet für Bot: {botname}")
-                                status_fuer_alle[botname] = "Fehler"
-                            else:
-                                logs.append("[Fallback] Kein gültiger avgPrice vorhanden.")
-                            break
-                except Exception as e:
-                    logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
-                    sende_telegram_nachricht(botname, f"❌ Fallback von BINGX fehlgeschlagen für Bot: {botname}")
-    
-        # 9. Alte Sell-Limit-Orders löschen
-        try:
-            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                for order in open_orders.get("data", {}).get("orders", []):
-                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                        cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
-                        logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
-        except Exception as e:
-            logs.append(f"Fehler beim Löschen der Sell-Limit-Orders: {e}")
-            sende_telegram_nachricht(botname, f"Fehler beim Löschen der Sell-Limit-Order {botname}: {e}")
-    
-        # 10. Neue Limit-Order setzen
-        limit_order_response = None
-    
-        position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-     
-        try:
-            if durchschnittspreis and sell_percentage:
-                limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
-            else:
-                limit_price = 0
-    
-            sell_quantity = min(sell_quantity, position_size)
-    
-            if sell_quantity > 0 and limit_price > 0:
-                limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
-                logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
-            else:
-                logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
-                sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
-        except Exception as e:
-            logs.append(f"Fehler bei Limit-Order: {e}")
-            sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
-    
-        # 11. Bestehende STOP_MARKET SL-Orders löschen
-        try:
+                sende_telegram_nachricht(botname, f"❌ Fallback von BINGX fehlgeschlagen für Bot: {botname}")
+
+    # 9. Alte Sell-Limit-Orders löschen
+    try:
+        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
             for order in open_orders.get("data", {}).get("orders", []):
-                if order.get("type") == "STOP_MARKET" and order.get("positionSide") == position_side:
+                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
                     cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
-                    logs.append(f"Bestehende SL-Order gelöscht: {cancel_response}")
-        except Exception as e:
-            logs.append(f"Fehler beim Löschen alter Stop-Market-Orders: {e}")
-            sende_telegram_nachricht(botname, f"❌ Fehler beim Löschen des Stop Loss für Bot: {botname}")
-    
-        # 12. Stop-Loss Order setzen
-        stop_loss_response = None
-        try:
-            if sell_quantity > 0 and stop_loss_price:
-                stop_loss_response = place_stop_loss_order(api_key, secret_key, symbol, sell_quantity, stop_loss_price, position_side)
-                logs.append(f"Stop-Loss Order gesetzt bei {stop_loss_price} für Bot {botname}: {stop_loss_response}")
-            else:
-                logs.append("Keine Stop-Loss Order gesetzt – unvollständige Daten.")
-        except Exception as e:
-            logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
-            sende_telegram_nachricht(botname, f"❌ Fehler beim Setzen des Stop Loss für Bot: {botname}")
-    
-        alarm_trigger = int(data.get("alarm", 0))
-    
-        if status_fuer_alle.get(botname) == "Fehler":
-            anzahl_nachkäufe = alarm_counter[botname] 
+                    logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
+    except Exception as e:
+        logs.append(f"Fehler beim Löschen der Sell-Limit-Orders: {e}")
+        sende_telegram_nachricht(botname, f"Fehler beim Löschen der Sell-Limit-Order {botname}: {e}")
+
+    # 10. Neue Limit-Order setzen
+    limit_order_response = None
+
+    position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
+ 
+    try:
+        if durchschnittspreis and sell_percentage:
+            limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
         else:
-            anzahl_käufe = len(kaufpreise or [])
-            anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-        
-        if anzahl_nachkäufe >= alarm_trigger:
-            try:
-                nachricht = f"{botname}:\nNachkäufe: {anzahl_nachkäufe}"
-                telegram_result = sende_telegram_nachricht(botname, nachricht)
-                logs.append(f"Telegram gesendet: {telegram_result}")
-            except Exception as e:
-                logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
-                sende_telegram_nachricht(botname, f"Fehler beim Senden der Telegram-Nachricht {botname}: {e}")
+            limit_price = 0
+
+        sell_quantity = min(sell_quantity, position_size)
+
+        if sell_quantity > 0 and limit_price > 0:
+            limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
+            logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
+        else:
+            logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
+            sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
+    except Exception as e:
+        logs.append(f"Fehler bei Limit-Order: {e}")
+        sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
+
+    # 11. Bestehende STOP_MARKET SL-Orders löschen
+    try:
+        for order in open_orders.get("data", {}).get("orders", []):
+            if order.get("type") == "STOP_MARKET" and order.get("positionSide") == position_side:
+                cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
+                logs.append(f"Bestehende SL-Order gelöscht: {cancel_response}")
+    except Exception as e:
+        logs.append(f"Fehler beim Löschen alter Stop-Market-Orders: {e}")
+        sende_telegram_nachricht(botname, f"❌ Fehler beim Löschen des Stop Loss für Bot: {botname}")
+
+    # 12. Stop-Loss Order setzen
+    stop_loss_response = None
+    try:
+        if sell_quantity > 0 and stop_loss_price:
+            stop_loss_response = place_stop_loss_order(api_key, secret_key, symbol, sell_quantity, stop_loss_price, position_side)
+            logs.append(f"Stop-Loss Order gesetzt bei {stop_loss_price} für Bot {botname}: {stop_loss_response}")
+        else:
+            logs.append("Keine Stop-Loss Order gesetzt – unvollständige Daten.")
+    except Exception as e:
+        logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
+        sende_telegram_nachricht(botname, f"❌ Fehler beim Setzen des Stop Loss für Bot: {botname}")
+
+    alarm_trigger = int(data.get("alarm", 0))
+
+    if status_fuer_alle.get(botname) == "Fehler":
+        anzahl_nachkäufe = alarm_counter[botname] 
+    else:
+        anzahl_käufe = len(kaufpreise or [])
+        anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
     
-        return jsonify({
-            "error": False,
-            "order_result": order_response,
-            "limit_order_result": limit_order_response,
-            "symbol": symbol,
-            "botname": botname,
-            "usdt_amount": usdt_amount,
-            "sell_quantity": sell_quantity,
-            "price_from_webhook": price_from_webhook,
-            "sell_percentage": sell_percentage,
-            "firebase_average_price": durchschnittspreis,
-            "firebase_all_prices": kaufpreise,
-            "usdt_balance_before_order": available_usdt,
-            "stop_loss_price": stop_loss_price if liquidation_price else None,
-            "stop_loss_response": stop_loss_response if liquidation_price else None,
-            "saved_usdt_amount": saved_usdt_amounts,
-            "status_fuer_alle": status_fuer_alle,
-            "Botname": botname,
-            "logs": logs
-        })
+    if anzahl_nachkäufe >= alarm_trigger:
+        try:
+            nachricht = f"{botname}:\nNachkäufe: {anzahl_nachkäufe}"
+            telegram_result = sende_telegram_nachricht(botname, nachricht)
+            logs.append(f"Telegram gesendet: {telegram_result}")
+        except Exception as e:
+            logs.append(f"Fehler beim Senden der Telegram-Nachricht: {e}")
+            sende_telegram_nachricht(botname, f"Fehler beim Senden der Telegram-Nachricht {botname}: {e}")
+
+    return jsonify({
+        "error": False,
+        "order_result": order_response,
+        "limit_order_result": limit_order_response,
+        "symbol": symbol,
+        "botname": botname,
+        "usdt_amount": usdt_amount,
+        "sell_quantity": sell_quantity,
+        "price_from_webhook": price_from_webhook,
+        "sell_percentage": sell_percentage,
+        "firebase_average_price": durchschnittspreis,
+        "firebase_all_prices": kaufpreise,
+        "usdt_balance_before_order": available_usdt,
+        "stop_loss_price": stop_loss_price if liquidation_price else None,
+        "stop_loss_response": stop_loss_response if liquidation_price else None,
+        "saved_usdt_amount": saved_usdt_amounts,
+        "status_fuer_alle": status_fuer_alle,
+        "Botname": botname,
+        "logs": logs
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
