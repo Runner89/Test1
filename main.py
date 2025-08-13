@@ -58,6 +58,10 @@ alarm_counter = {}
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
+def get_server_time():
+    response = requests.get(f"{BASE_URL}/api/v1/time").json()
+    return int(response['serverTime'])
+
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
     params = f"timestamp={timestamp}"
@@ -101,12 +105,12 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
         # 2. Parameter vorbereiten
         params = {
             "symbol": symbol,
-            "side": "SELL" if position_side.upper() == "LONG" else "BUY",
+            "side": "SELL" if position_side == "LONG" else "BUY",
             "type": "MARKET",
-            "quantity": quantity,
-            "positionSide": position_side.upper(),
+            "quantity": str(quantity),
+            "positionSide": position_side,
             "reduceOnly": "true",
-            "timestamp": server_time
+            "timestamp": get_server_time()  # <- hier die API-Serverzeit
         }
 
         # 3. Signatur erstellen
