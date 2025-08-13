@@ -523,7 +523,7 @@ def webhook():
 
         if is_first_order:
             status_fuer_alle[botname] = "OK"
-            alarm_counter[botname] = -1
+            alarm_counter[botname] = alarm_counter.get(botname, -1) + 1
         
             #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
         
