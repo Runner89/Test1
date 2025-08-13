@@ -537,8 +537,8 @@ def webhook():
                 response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
                 logs.append(f"LONG Position geschlossen: {response}")
             
-        except Exception as e:
-        logs.append(f"Fehler beim Schließen der Position: {e}")
+            except Exception as e:
+            logs.append(f"Fehler beim Schließen der Position: {e}")
 
         
             # 3. Lokale Variablen & Alarm zurücksetzen
