@@ -556,8 +556,11 @@ def webhook():
                     sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
     
         # 4. Market-Order ausführen
+        
         logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
         order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+        if order_response.get("code") != 0:
+            logs.append(f"Market-Order konnte nicht platziert werden: {order_response}")
         alarm_counter[botname] += 1
         logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
         time.sleep(2)
