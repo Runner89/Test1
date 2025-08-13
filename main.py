@@ -549,16 +549,16 @@ def webhook():
         
             # 2. Position(en) schließen
             try:          
-                position_side = "LONG"
-
+                position_side = "LONG"  # oder "SHORT", je nachdem welche Position offen ist
                 # Positionsgröße holen
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-
-                # Positionsgröße runden, falls nötig
+                
+                # Positionsgröße runden
                 qty = round_quantity(symbol, position_size)
                 
                 # Position schließen
                 close_position(api_key, secret_key, symbol, position_side, qty, logs)
+                
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
                             
