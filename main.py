@@ -594,7 +594,7 @@ def webhook():
             sende_telegram_nachricht(botname, f"Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
     
         # 6. Kaufpreise ggf. löschen
-        if firebase_secret and not open_sell_orders_exist:
+        if firebase_secret and not is_first_order:
             try:
                 logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
             except Exception as e:
