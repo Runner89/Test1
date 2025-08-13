@@ -404,6 +404,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
+    usdt_factor = float(data.get("usdt_factor", 1))
     
 
     if not api_key or not secret_key:
@@ -446,57 +447,55 @@ def webhook():
     # 3. Ordergröße ermitteln (Compounding-Logik)
     usdt_amount = 0
     open_sell_orders_exist = False
-
-    if firebase_secret:
-        try:
-            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                for order in open_orders.get("data", {}).get("orders", []):
-                    if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                        open_sell_orders_exist = True
-                        break
-
-            if not open_sell_orders_exist:
-                if botname in status_fuer_alle:
-                    del status_fuer_alle[botname]
-                status_fuer_alle[botname] = "OK"
-                alarm_counter[botname] = -1
-
-                logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-
-                if botname in saved_usdt_amounts:
-                    del saved_usdt_amounts[botname]
-                    logs.append(f"Ordergröße aus Cache für {botname} gelöscht (keine offene Sell-Limit-Order)")
-
-                if available_usdt is not None and pyramiding > 0:
-                    usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0) 
-                    saved_usdt_amounts[botname] = usdt_amount
-                    logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
-                    logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
-
-            saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
-
-            if not saved_usdt_amount or saved_usdt_amount == 0:
-                try:
-                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
-                    if usdt_amount > 0:
-                        saved_usdt_amounts[botname] = usdt_amount
-                        logs.append(f"Ordergröße aus Firebase für {botname} gelesen: {usdt_amount}")
-                        sende_telegram_nachricht(botname, f"ℹ️ Ordergröße aus Firebase verwendet bei Bot: {botname}")
-                    else:
-                        logs.append(f"❌ Keine Ordergröße gefunden für {botname}")
-                        sende_telegram_nachricht(botname, f"❌ Keine Ordergröße gefunden für Bot: {botname}")
-                except Exception as e:
-                    status_fuer_alle[botname] = "Fehler"
-                    logs.append(f"Fehler beim Lesen der Ordergröße aus Firebase: {e}")
-                    sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
-            else:
-                usdt_amount = saved_usdt_amount
-                logs.append(f"Verwende gespeicherte Ordergröße aus Dict für {botname}: {usdt_amount}")
-
-        except Exception as e:
-            status_fuer_alle[botname] = "Fehler"
-            logs.append(f"Fehler bei Ordergrößenberechnung: {e}")
-            sende_telegram_nachricht(botname, f"❌ Ausnahmefehler bei Ordergrößenberechnung für {botname}: {e}")
+    
+    # Prüfen, ob es offene SELL-Limit Orders gibt
+    if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+        for order in open_orders.get("data", {}).get("orders", []):
+            if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
+                open_sell_orders_exist = True
+                break
+    
+    # Wenn keine offene Sell-Limit-Order existiert → erste Order
+    if not open_sell_orders_exist:
+        status_fuer_alle[botname] = "OK"
+        alarm_counter[botname] = -1
+    
+        logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+    
+        if botname in saved_usdt_amounts:
+            del saved_usdt_amounts[botname]
+            logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
+    
+        if available_usdt is not None and pyramiding > 0:
+            # Erste Order bleibt unverändert
+            usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
+            saved_usdt_amounts[botname] = usdt_amount
+            logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
+            logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+    
+    # Wenn globale Variable vorhanden → nächste Orders
+    else:
+        saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
+        if saved_usdt_amount and saved_usdt_amount > 0:
+            usdt_amount = saved_usdt_amount * usdt_factor
+            saved_usdt_amounts[botname] = usdt_amount
+            logs.append(f"Nächste Ordergröße mit Faktor {usdt_factor} berechnet: {usdt_amount}")
+            logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+        else:
+            # Fallback aus Firebase
+            try:
+                usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
+                if usdt_amount > 0:
+                    saved_usdt_amounts[botname] = usdt_amount * usdt_factor
+                    usdt_amount = saved_usdt_amounts[botname]
+                    logs.append(f"Ordergröße aus Firebase gelesen und mit Faktor {usdt_factor} multipliziert: {usdt_amount}")
+                    sende_telegram_nachricht(botname, f"ℹ️ Ordergröße aus Firebase verwendet bei Bot: {botname}")
+                else:
+                    logs.append(f"❌ Keine Ordergröße gefunden für {botname}")
+            except Exception as e:
+                status_fuer_alle[botname] = "Fehler"
+                logs.append(f"Fehler beim Lesen der Ordergröße aus Firebase: {e}")
+                sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
 
     # 4. Market-Order ausführen
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
