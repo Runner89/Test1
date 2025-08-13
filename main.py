@@ -74,6 +74,25 @@ def round_quantity(symbol, quantity):
     precision = abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
     return round(quantity, precision)
 
+def get_symbol_info(symbol):
+    url = f"{BASE_URL}/api/v1/market/getContract"
+    resp = requests.get(url)
+    data = resp.json()
+
+    if data.get("code") != 0:
+        raise Exception(f"Fehler beim Laden der Symbolinfos: {data}")
+
+    for item in data["data"]:
+        if item["symbol"] == symbol:
+            return {
+                "symbol": item["symbol"],
+                "stepSize": float(item["stepSize"]),
+                "tickSize": float(item["tickSize"]),
+                "minQty": float(item["minQty"]),
+                "maxQty": float(item["maxQty"])
+            }
+    raise Exception(f"Symbol {symbol} nicht gefunden")
+
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
     response = requests.get(url)
