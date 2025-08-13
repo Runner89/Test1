@@ -329,8 +329,8 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
     except Exception as e:
         return []
 
-def berechne_durchschnittspreis(preise):
-     if not käufe:
+def berechne_durchschnittspreis(käufe):
+    if not käufe:
         return None
 
     gesamtwert = 0
@@ -346,7 +346,7 @@ def berechne_durchschnittspreis(preise):
         return None
 
     return round(gesamtwert / gesamtmenge, 6)
-
+    
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
     
