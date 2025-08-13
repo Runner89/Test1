@@ -57,7 +57,7 @@ alarm_counter = {}
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
-
+   
 def get_server_time():
     response = requests.get(f"{BASE_URL}/api/v1/time").json()
     return int(response['serverTime'])
@@ -98,19 +98,19 @@ def round_quantity(symbol, quantity):
 def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
         # 1. Serverzeit von BingX holen
-        server_time_resp = requests.get(f"{BASE_URL}/api/v1/common/time")
+        server_time_resp = requests.get(f"{BASE_URL}/api/v2/public/time")
         server_time_resp.raise_for_status()
         server_time = server_time_resp.json()["serverTime"]
 
         # 2. Parameter vorbereiten
         params = {
             "symbol": symbol,
-            "side": "SELL" if position_side == "LONG" else "BUY",
+            "side": "SELL" if position_side.upper() == "LONG" else "BUY",
             "type": "MARKET",
-            "quantity": str(quantity),
-            "positionSide": position_side,
-            "reduceOnly": "true",
-            "timestamp": get_server_time()  # <- hier die API-Serverzeit
+            "quantity": str(quantity),   # als String
+            "positionSide": position_side.upper(),
+            "reduceOnly": "true",        # lowercase string
+            "timestamp": server_time
         }
 
         # 3. Signatur erstellen
@@ -120,7 +120,7 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
 
         logs.append(f"DEBUG Order-Params: {params}")
 
-        # 4. Request senden (Form-Data, nicht JSON)
+        # 4. POST-Request senden
         headers = {
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
