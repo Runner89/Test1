@@ -10,6 +10,7 @@
 #StopLoss 3% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
+#Wenn action=close ist wird Position geschlossen
 
 #https://......../webhook
 #{
