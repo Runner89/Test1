@@ -97,33 +97,38 @@ def round_quantity(symbol, quantity):
 
 def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
-        # 1. Lokale Zeit in ms verwenden
-        server_time = int(time.time() * 1000)
-
-        # 2. Parameter vorbereiten
+        # 1. Parameter vorbereiten
         params = {
             "symbol": symbol,
-            "side": "SELL" if position_side == "LONG" else "BUY",
+            "side": "SELL" if position_side.upper() == "LONG" else "BUY",
             "type": "MARKET",
             "quantity": str(quantity),
-            "positionSide": position_side,
-            "reduceOnly": "true",
-            "timestamp": server_time
+            "positionSide": position_side.upper(),
+            "reduceOnly": True,  # Boolean für Signatur
+            "timestamp": int(time.time() * 1000)
         }
 
-        # 3. Signatur erstellen
+        # 2. Alphabetisch sortieren und Query-String für Signatur erstellen
         sorted_params = sorted(params.items())
-        query = "&".join(f"{k}={v}" for k, v in sorted_params)
-        params["signature"] = generate_signature(secret_key, query)
+        query = "&".join(f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in sorted_params)
 
-        logs.append(f"DEBUG Order-Params: {params}")
+        # 3. Signatur erstellen
+        signature = generate_signature(secret_key, query)
 
-        # 4. Request senden
+        # 4. Parameter für Request vorbereiten (reduceOnly als string)
+        request_params = params.copy()
+        request_params["reduceOnly"] = "true"  # muss string sein
+        request_params["signature"] = signature
+
+        logs.append(f"DEBUG Order-Params: {request_params}")
+
+        # 5. Request senden
         headers = {
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
         }
-        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
+
+        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=request_params).json()
         logs.append(f"{position_side.upper()} Position geschlossen: {response}")
 
     except Exception as e:
