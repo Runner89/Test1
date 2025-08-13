@@ -59,10 +59,17 @@ def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def get_server_time():
-    #"""Serverzeit in Millisekunden holen"""
+    
     resp = requests.get(f"{BASE_URL}/api/v1/common/time")
     resp.raise_for_status()
-    return int(resp.json()["time"])
+    # Je nach API-Version: entweder resp.json()["serverTime"] oder ["time"]
+    data = resp.json()
+    if "serverTime" in data:
+        return int(data["serverTime"])
+    elif "time" in data:
+        return int(data["time"])
+    else:
+        raise ValueError(f"Serverzeit konnte nicht ermittelt werden: {data}")
 
 def get_futures_balance(api_key: str, secret_key: str):
     timestamp = int(time.time() * 1000)
@@ -101,6 +108,7 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
         # 1. Serverzeit holen
         timestamp = get_server_time()
+        params["timestamp"] = timestamp
 
         # 2. Parameter vorbereiten
         params = {
