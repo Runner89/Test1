@@ -300,17 +300,21 @@ def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
     import requests
     import time
 
-    # Daten, die gespeichert werden sollen
     data = {
-        "price": price,
-        "usdt_amount": usdt_amount,
-        "timestamp": int(time.time())  # optional: für Sortierung/Verlauf
+        "price": float(price),
+        "usdt_amount": float(usdt_amount),
+        "timestamp": int(time.time())
     }
 
-    # URL für POST, damit ein neuer Eintrag angelegt wird (Firebase generiert automatisch Key)
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
 
     response = requests.post(url, json=data)
+    print("Firebase Response:", response.status_code, response.text)
+
+    if response.status_code == 200:
+        return f"Kaufpreis für {botname} erfolgreich gespeichert."
+    else:
+        raise Exception(f"Fehler beim Speichern: {response.text}")
 
     if response.status_code == 200:
         return f"Kaufpreis für {botname} erfolgreich gespeichert."
