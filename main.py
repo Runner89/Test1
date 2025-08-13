@@ -67,37 +67,29 @@ def get_futures_balance(api_key: str, secret_key: str):
     response = requests.get(url, headers=headers)
     return response.json()
 
-import requests
-import decimal
+import requests, decimal, time
 
 def get_symbol_info(symbol):
-    url = f"{BASE_URL}/openApi/market/v2/getAllContracts"
+    url = f"{BASE_URL}/openApi/swap/v2/quote/contracts"
     resp = requests.get(url)
     data = resp.json()
-
     if data.get("code") != 0:
         raise Exception(f"Fehler beim Laden der Symbolinfos: {data}")
-
     for item in data.get("data", []):
         if item.get("symbol") == symbol:
-            lot_size = float(item.get("lotSize", 0))
             return {
-                "symbol": symbol,
-                "lotSize": lot_size,
+                "lotSize": float(item.get("lotSize", 0)),
                 "tickSize": float(item.get("tickSize", 0)),
                 "minQty": float(item.get("minQty", 0)),
                 "maxQty": float(item.get("maxQty", 0))
             }
-
     raise Exception(f"Symbol {symbol} nicht gefunden")
 
 def round_quantity(symbol, quantity):
     info = get_symbol_info(symbol)
-    lot_size = info["lotSize"]
-    # Ermittle die Dezimalstellen der lotSize
-    precision = abs(decimal.Decimal(str(lot_size)).as_tuple().exponent)
+    lot = info["lotSize"]
+    precision = abs(decimal.Decimal(str(lot)).as_tuple().exponent)
     return round(float(quantity), precision)
-
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -515,32 +507,30 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                qty = round_quantity(symbol, position_size)  # exakte Menge, die BingX akzeptiert
+                qty = round_quantity(symbol, position_size)  # Runde auf validen Wert
             
-                params_dict = {
+                params = {
                     "symbol": symbol,
                     "side": "SELL",
                     "type": "MARKET",
                     "quantity": qty,
                     "positionSide": "LONG",
-                    "reduceOnly": "true",  # String, korrekt
+                    "reduceOnly": "true",
                     "timestamp": int(time.time() * 1000)
                 }
+                query = "&".join(f"{k}={params[k]}" for k in sorted(params))
+                signature = generate_signature(secret_key, query)
+                params["signature"] = signature
             
-                # Signatur erstellen
-                query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
-                signature = generate_signature(secret_key, query_string)
-                params_dict["signature"] = signature
+                logs.append(f"DEBUG Order-Params: {params}")
             
-                logs.append(f"DEBUG Order-Params: {params_dict}")
-            
-                # Request abschicken
-                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers={
+                headers = {
                     "X-BX-APIKEY": api_key,
-                    "X-SOURCE-KEY": SOURCE_KEY  # optional, wenn von BingX verlangt
-                }, json=params_dict).json()
-            
+                    # ggf. auch Source-Key falls benötigt
+                }
+                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, json=params).json()
                 logs.append(f"LONG Position geschlossen: {response}")
+            
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
         
