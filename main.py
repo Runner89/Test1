@@ -349,7 +349,7 @@ def berechne_durchschnittspreis(käufe):
 
     for kauf in käufe:
         preis = float(kauf.get("price", 0))
-        menge = float(kauf.get("amount", 0))
+        menge = float(kauf.get("usdt_amount", 0))
         gesamtwert += preis * menge
         gesamtmenge += menge
 
