@@ -403,6 +403,7 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
     usdt_factor = float(data.get("usdt_factor", 1))
+    action = data.get("action", "").lower()
     
 
     if not api_key or not secret_key:
@@ -414,57 +415,58 @@ def webhook():
     if action == "close":
         try:
             logs.append(f"Schließe alle offenen Orders und Positionen für {symbol}...")
-
-        # 1. Offene Orders löschen
-            open_orders = get_open_orders(api_key, secret_key, symbol)
-            if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-                for order in open_orders.get("data", {}).get("orders", []):
-                    cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
-                    logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
+        
+            # 1. Offene Orders löschen
+            try:
+                open_orders = get_open_orders(api_key, secret_key, symbol)
+                if isinstance(open_orders, dict) and open_orders.get("code") == 0:
+                    for order in open_orders.get("data", {}).get("orders", []):
+                        cancel_response = cancel_order(api_key, secret_key, symbol, str(order.get("orderId")))
+                        logs.append(f"Gelöschte Order {order.get('orderId')}: {cancel_response}")
+            except Exception as e:
+                logs.append(f"Fehler beim Löschen der Orders: {e}")
+        
+            # 2. Position(en) schließen
+            try:
+                position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
+                if position_size > 0:
+                    close_long = place_market_order(api_key, secret_key, symbol, position_size, "SHORT")
+                    logs.append(f"LONG Position geschlossen: {close_long}")
+        
+                position_size, _, _ = get_current_position(api_key, secret_key, symbol, "SHORT", logs)
+                if position_size > 0:
+                    close_short = place_market_order(api_key, secret_key, symbol, position_size, "LONG")
+                    logs.append(f"SHORT Position geschlossen: {close_short}")
+            except Exception as e:
+                logs.append(f"Fehler beim Schließen der Position: {e}")
+        
+            # 3. Lokale Variablen & Alarm zurücksetzen
+            if botname in saved_usdt_amounts:
+                del saved_usdt_amounts[botname]
+                logs.append(f"Lokale Ordergröße für {botname} gelöscht.")
+        
+            status_fuer_alle[botname] = "OK"
+            alarm_counter[botname] = 0
+        
+            # 4. Firebase-Daten löschen
+            try:
+                if firebase_secret:
+                    logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                    logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
+            except Exception as e:
+                logs.append(f"Fehler beim Löschen aus Firebase: {e}")
+        
+            return jsonify({
+                "error": False,
+                "msg": f"Alle offenen Orders, Positionen, Cache und Alarm-Zähler für {symbol} gelöscht",
+                "logs": logs
+            })
         except Exception as e:
-            logs.append(f"Fehler beim Löschen der Orders: {e}")
-    
-        # 2. Position(en) schließen (LONG und SHORT prüfen)
-        try:
-            position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-            if position_size > 0:
-                close_long = place_market_order(api_key, secret_key, symbol, position_size, "SHORT")
-                logs.append(f"LONG Position geschlossen: {close_long}")
-    
-            position_size, _, _ = get_current_position(api_key, secret_key, symbol, "SHORT", logs)
-            if position_size > 0:
-                close_short = place_market_order(api_key, secret_key, symbol, position_size, "LONG")
-                logs.append(f"SHORT Position geschlossen: {close_short}")
-        except Exception as e:
-            logs.append(f"Fehler beim Schließen der Position: {e}")
-    
-        # 3. Lokale Variablen zurücksetzen
-        if botname in saved_usdt_amounts:
-            del saved_usdt_amounts[botname]
-            logs.append(f"Lokale Ordergröße für {botname} gelöscht.")
-    
-        status_fuer_alle[botname] = "OK"
-        alarm_counter[botname] = -1
-    
-        # 4. Firebase-Daten löschen
-        try:
-            if firebase_secret:
-                logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-                logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler beim Löschen aus Firebase: {e}")
-    
-        return jsonify({
-            "error": False,
-            "msg": f"Alle offenen Orders, Positionen und Cache/Firebase-Daten für {symbol} gelöscht",
-            "logs": logs
-        })
-    except Exception as e:
-        return jsonify({
-            "error": True,
-            "msg": f"Fehler bei close: {e}",
-            "logs": logs
-        }), 500
+            return jsonify({
+                "error": True,
+                "msg": f"Fehler bei close: {e}",
+                "logs": logs
+            }), 500
 
 else:    
 
