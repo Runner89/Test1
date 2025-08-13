@@ -410,7 +410,7 @@ def webhook():
 
     available_usdt = 0.0
 
-    'falls close im Webhook, dann alle Positionen des coin schliessen
+    #falls close im Webhook, dann alle Positionen des coin schliessen
     if action == "close":
         try:
             logs.append(f"Schließe alle offenen Orders und Positionen für {symbol}...")
