@@ -483,13 +483,36 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                if position_size > 0:
-                    # Hedge Mode → positionSide setzen und reduceOnly aktivieren
-                    # Hedge Mode → SELL mit positionSide="LONG"
-                    close_long = place_market_order(api_key, secret_key, symbol, position_size, side="SELL", position_side="LONG", reduce_only=True, is_contract_qty=True)
-
+                if float(position_size) > 0:
+                    quantity = round(float(position_size), 6)
+                    timestamp = int(time.time() * 1000)
+            
+                    params_dict = {
+                        "symbol": symbol,
+                        "side": "SELL",
+                        "type": "MARKET",
+                        "quantity": quantity,
+                        "positionSide": "LONG",
+                        "reduceOnly": "true",  # String klein
+                        "timestamp": timestamp
+                    }
+            
+                    # Alphabetisch sortieren
+                    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+                    signature = generate_signature(secret_key, query_string)
+                    params_dict["signature"] = signature
+            
+                    print("DEBUG SEND:", params_dict)  # <-- hier siehst du, was wirklich gesendet wird
+            
+                    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+                    headers = {
+                        "X-BX-APIKEY": api_key,
+                        "Content-Type": "application/json"
+                    }
+            
+                    close_long = requests.post(url, headers=headers, json=params_dict).json()
                     logs.append(f"LONG Position geschlossen: {close_long}")
-        
+            
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
         
