@@ -484,7 +484,7 @@ def webhook():
                     logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
                     logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
 
-            else
+            else:
                  # Wenn offene Sell-Limit-Order existiert, multipliziere mit order_factor
                 if saved_usdt_amount is not None and saved_usdt_amount > 0:
                     usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0) * order_factor
