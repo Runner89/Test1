@@ -76,26 +76,56 @@ def get_current_price(symbol: str):
     else:
         return None
 
-def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG", reduce_only=False):
+def place_market_order(api_key, secret_key, symbol, amount, position_side=None, reduce_only=False, is_contract_qty=False):
     price = get_current_price(symbol)
     if price is None:
         return {"code": 99999, "msg": "Failed to get current price"}
 
-    quantity = round(usdt_amount / price, 6)
+    # Falls amount USDT ist, erst in Kontrakte umrechnen
+    if not is_contract_qty:
+        quantity = round(amount / price, 6)
+    else:
+        quantity = round(amount, 6)
+
     timestamp = int(time.time() * 1000)
 
-    # Side automatisch abhängig von position_side bestimmen
-    # LONG = BUY, SHORT = SELL
-    side = "BUY" if position_side.upper() == "LONG" else "SELL"
+    # Side abhängig von position_side
+    if position_side and position_side.upper() == "LONG":
+        side = "BUY"
+    elif position_side and position_side.upper() == "SHORT":
+        side = "SELL"
+    else:
+        # Wenn position_side None, dann One-Way Mode → Nutzer gibt Side direkt vor
+        side = "BUY" if amount > 0 else "SELL"
 
     params_dict = {
         "symbol": symbol,
         "side": side,
         "type": "MARKET",
         "quantity": quantity,
-        "positionSide": position_side.upper(),  # LONG oder SHORT
         "timestamp": timestamp
     }
+
+    # Nur in Hedge Mode setzen
+    if position_side:
+        params_dict["positionSide"] = position_side.upper()
+
+    if reduce_only:
+        params_dict["reduceOnly"] = "true"  # String, klein geschrieben
+
+    # Signieren
+    query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
+    signature = generate_signature(secret_key, query_string)
+    params_dict["signature"] = signature
+
+    url = f"{BASE_URL}{ORDER_ENDPOINT}"
+    headers = {
+        "X-BX-APIKEY": api_key,
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
 
     # Nur setzen, wenn reduce_only True ist
     if reduce_only:
