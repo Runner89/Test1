@@ -76,7 +76,7 @@ def get_current_price(symbol: str):
     else:
         return None
 
-def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG"):
+def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="LONG", reduce_only=False):
     price = get_current_price(symbol)
     if price is None:
         return {"code": 99999, "msg": "Failed to get current price"}
@@ -84,24 +84,38 @@ def place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="
     quantity = round(usdt_amount / price, 6)
     timestamp = int(time.time() * 1000)
 
+    # Side automatisch abhängig von position_side bestimmen
+    # LONG = BUY, SHORT = SELL
+    side = "BUY" if position_side.upper() == "LONG" else "SELL"
+
     params_dict = {
         "symbol": symbol,
-        "side": "BUY",
+        "side": side,
         "type": "MARKET",
         "quantity": quantity,
-        "positionSide": position_side,
+        "positionSide": position_side.upper(),  # LONG oder SHORT
         "timestamp": timestamp
     }
 
+    # Nur setzen, wenn reduce_only True ist
+    if reduce_only:
+        params_dict["reduceOnly"] = "true"  # bei vielen APIs klein geschrieben
+
+    # Signatur erstellen
     query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
     signature = generate_signature(secret_key, query_string)
     params_dict["signature"] = signature
 
+    # API-Request absenden
     url = f"{BASE_URL}{ORDER_ENDPOINT}"
     headers = {
         "X-BX-APIKEY": api_key,
         "Content-Type": "application/json"
     }
+
+    response = requests.post(url, headers=headers, json=params_dict)
+    return response.json()
+
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
@@ -430,13 +444,9 @@ def webhook():
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
                 if position_size > 0:
-                    close_long = place_market_order(api_key, secret_key, symbol, position_size, "SHORT")
+                    close_long = place_market_order(api_key, secret_key, "BTC-USDT", position_size, position_side="SHORT", reduce_only=True)
                     logs.append(f"LONG Position geschlossen: {close_long}")
         
-                position_size, _, _ = get_current_position(api_key, secret_key, symbol, "SHORT", logs)
-                if position_size > 0:
-                    close_short = place_market_order(api_key, secret_key, symbol, position_size, "LONG")
-                    logs.append(f"SHORT Position geschlossen: {close_short}")
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
         
