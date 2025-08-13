@@ -310,7 +310,7 @@ def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
 
     # HTTP PUT oder POST, je nach Bedarf
-    response = requests.post(url, json=data)
+    response = requests.put(url, json=data)
 
     if response.status_code == 200:
         return f"Kaufpreis für {botname} erfolgreich gespeichert."
