@@ -451,7 +451,8 @@ def webhook():
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
     usdt_factor = float(data.get("usdt_factor", 1))
-    action = data.get("action", "").lower() 
+    action = data.get("action", "").lower()
+    side2 = data.get("side", "").lower() 
     
 
     if not api_key or not secret_key:
@@ -514,28 +515,13 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
     
-        # 2. Offene Orders abrufen
-        open_orders = {}
-        try:
-            open_orders = get_open_orders(api_key, secret_key, symbol)
-            logs.append(f"Open Orders: {open_orders}")
-        except Exception as e:
-            logs.append(f"Fehler bei Orderprüfung: {e}")
-            sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
-    
         # 3. Ordergröße ermitteln (Compounding-Logik)
         usdt_amount = 0
-        open_sell_orders_exist = False
-        
-        # Prüfen, ob es offene SELL-Limit Orders gibt
-        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-            for order in open_orders.get("data", {}).get("orders", []):
-                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                    open_sell_orders_exist = True
-                    break
-        
-        # Wenn keine offene Sell-Limit-Order existiert → erste Order
-        if not open_sell_orders_exist:
+
+        # Prüfen, ob es die erste Kauforder ist anhand Webhook side2
+        is_first_order = data.get("side2", "").lower() == "long"
+
+        if is_first_order:
             status_fuer_alle[botname] = "OK"
             alarm_counter[botname] = -1
         
