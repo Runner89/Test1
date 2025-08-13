@@ -300,10 +300,10 @@ import requests
 import time
 
 def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
-    """
-    Speichert einen Kaufpreis-Eintrag in Firebase unter /kaufpreise/{botname}.
-    Stellt sicher, dass price, usdt_amount und timestamp korrekt als float/int gespeichert werden.
-    """
+    
+    #Speichert einen Kaufpreis-Eintrag in Firebase unter /kaufpreise/{botname}.
+    #Stellt sicher, dass price, usdt_amount und timestamp korrekt als float/int gespeichert werden.
+    
     try:
         # Absichern, dass price und usdt_amount Zahlen sind
         price = float(price)
