@@ -561,7 +561,7 @@ def webhook():
             status_fuer_alle[botname] = "Fehler"
 
     # 7.2 Update Ordergrösse 
-    If firebase_secret and price_from_webhook:
+    if firebase_secret and price_from_webhook:
         try:
             logs.append(update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret))
         except Exception as e:
