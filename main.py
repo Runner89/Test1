@@ -306,20 +306,17 @@ def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
         "timestamp": int(time.time())
     }
 
+    print(f"[DEBUG] Sende Daten an Firebase für {botname}: {data}")
+
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-
     response = requests.post(url, json=data)
-    print("Firebase Response:", response.status_code, response.text)
 
-    if response.status_code == 200:
-        return f"Kaufpreis für {botname} erfolgreich gespeichert."
-    else:
+    print(f"[DEBUG] Firebase Antwort Status: {response.status_code}, Text: {response.text}")
+
+    if response.status_code != 200:
         raise Exception(f"Fehler beim Speichern: {response.text}")
 
-    if response.status_code == 200:
-        return f"Kaufpreis für {botname} erfolgreich gespeichert."
-    else:
-        raise Exception(f"Fehler beim Speichern: {response.text}")
+    return f"Kaufpreis für {botname} erfolgreich gespeichert."
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
