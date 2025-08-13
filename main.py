@@ -296,70 +296,26 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
     response = requests.delete(url)
     return f"Ordergröße für {botname} gelöscht, Status: {response.status_code}"
 
-import requests
-import time
+def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
+    import requests
 
-import requests
-import time
 
-FIREBASE_URL = "https://DEIN-PROJEKT.firebaseio.com/kaufpreise"
-
-def save_kaufpreis(botname, price, usdt_amount):
-    """
-    Speichert den Kaufpreis für einen Bot in Firebase.
-    Verhindert, dass None/Null-Werte gespeichert werden.
-    """
-    if price is None or usdt_amount is None:
-        print(f"[WARNING] Ungültige Daten, nicht speichern: price={price}, usdt_amount={usdt_amount}")
-        return False
-
+    # Daten, die gespeichert werden sollen
     data = {
-        "price": float(price),
-        "usdt_amount": float(usdt_amount),
-        "timestamp": int(time.time() * 1000)
+        "price": price,
+        "usdt_amount": usdt_amount
     }
 
-    try:
-        response = requests.post(f"{FIREBASE_URL}/{botname}.json", json=data)
-        if response.status_code == 200:
-            print(f"[Firebase] Kaufpreis gespeichert für {botname}: {data}")
-            return True
-        else:
-            print(f"[ERROR] Firebase-Fehler {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print(f"[ERROR] Firebase-Exception: {e}")
-        return False
+    # URL zusammenbauen mit Authentifizierung
+    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
 
-def read_kaufpreise(botname):
-    """
-    Liest alle Kaufpreise eines Bots aus Firebase.
-    Filtert ungültige Einträge heraus.
-    """
-    try:
-        response = requests.get(f"{FIREBASE_URL}/{botname}.json")
-        if response.status_code != 200:
-            print(f"[ERROR] Firebase-Fehler {response.status_code}: {response.text}")
-            return []
+    # HTTP PUT oder POST, je nach Bedarf
+    response = requests.post(url, json=data)
 
-        data = response.json()
-        if not data:
-            print(f"[Firebase] Keine Kaufpreise gefunden für {botname}")
-            return []
-
-        # Filter: Nur Einträge mit gültigem Preis und USDT-Amount
-        valid_prices = [
-            entry for entry in data.values()
-            if entry.get("price") is not None and entry.get("usdt_amount") is not None
-        ]
-
-        print(f"[Firebase] Gelesene Kaufpreise für {botname}: {valid_prices}")
-        return valid_prices
-
-    except Exception as e:
-        print(f"[ERROR] Firebase-Exception: {e}")
-        return []
-
+    if response.status_code == 200:
+        return f"Kaufpreis für {botname} erfolgreich gespeichert."
+    else:
+        raise Exception(f"Fehler beim Speichern: {response.text}")
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
@@ -376,19 +332,10 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
         print(f"Firebase Antwort Inhalt: {r.text}")
         daten = r.json()
         if not daten:
-            print(f"Keine Daten unter kaufpreise/{botname} gefunden")
+            print("Keine Daten unter kaufpreise/{botname} gefunden")
             return []
-
         # Werte in Liste umwandeln
-        kaufpreise = []
-        for v in daten.values():
-            kaufpreise.append({
-                "price": float(v.get("price", 0)),
-                "usdt_amount": float(v.get("usdt_amount", 0)),
-                "timestamp": v.get("timestamp")  # optional
-            })
-        return kaufpreise
-
+        return [{"price": float(v.get("price", 0)), "usdt_amount": float(v.get("usdt_amount", 0))} for v in daten.values()]
     except Exception as e:
         print(f"Fehler beim Lesen der Kaufpreise: {e}")
         return []
@@ -410,15 +357,6 @@ def berechne_durchschnittspreis(käufe):
         return None
 
     return round(gesamtwert / gesamtmenge, 6)
-
-def update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret):
-    url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-    data = usdt_amount  # Einfach den Wert speichern
-    response = requests.put(url, json=data)  # PUT überschreibt den alten Wert
-    if response.status_code == 200:
-        print(f"Ordergröße erfolgreich aktualisiert: {usdt_amount}")
-    else:
-        print(f"Fehler beim Aktualisieren der Ordergröße: {response.text}")
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
@@ -436,8 +374,6 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
         "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
-
-
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -468,7 +404,7 @@ def webhook():
     position_side = data.get("position_side") or data.get("positionSide") or "LONG"
     firebase_secret = data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("price")
-    order_factor = float(data.get("order_factor", 1))  # Default = 1, falls nicht angegeben
+    
 
     if not api_key or not secret_key:
         return jsonify({"error": True, "msg": "api_key und secret_key sind erforderlich"}), 400
@@ -537,16 +473,11 @@ def webhook():
                     logs.append(f"Neue Ordergröße berechnet: {usdt_amount}")
                     logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
 
-            else:
-                 # Wenn offene Sell-Limit-Order existiert, multipliziere mit order_factor
-                if saved_usdt_amount is not None and saved_usdt_amount > 0:
-                    usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0) * order_factor
-                    saved_usdt_amounts[botname] = usdt_amount
-                    logs.append(f"Offene Sell-Limit-Order existiert, Ordergröße mit Faktor multipliziert: {usdt_amount}")
-                    
+            saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
+
             if not saved_usdt_amount or saved_usdt_amount == 0:
                 try:
-                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) * order_factor or 0
+                    usdt_amount = firebase_lese_ordergroesse(botname, firebase_secret) or 0
                     if usdt_amount > 0:
                         saved_usdt_amounts[botname] = usdt_amount
                         logs.append(f"Ordergröße aus Firebase für {botname} gelesen: {usdt_amount}")
@@ -611,14 +542,6 @@ def webhook():
             logs.append(firebase_speichere_kaufpreis(botname, float(price_from_webhook), float(usdt_amount), firebase_secret))
         except Exception as e:
             logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
-            status_fuer_alle[botname] = "Fehler"
-
-    # 7.2 Update Ordergrösse 
-    if firebase_secret and price_from_webhook:
-        try:
-            logs.append(update_ordergroesse_in_firebase(botname, usdt_amount, firebase_secret))
-        except Exception as e:
-            logs.append(f"Fehler beim Update der Ordergrösse: {e}")
             status_fuer_alle[botname] = "Fehler"
 
     # 8. Durchschnittspreis bestimmen
