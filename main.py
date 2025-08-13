@@ -67,31 +67,36 @@ def get_futures_balance(api_key: str, secret_key: str):
     response = requests.get(url, headers=headers)
     return response.json()
 
-def round_quantity(symbol, quantity):
-    # Step Size von BingX-ExchangeInfo laden
-    info = get_symbol_info(symbol)  # Muss exchangeInfo abfragen
-    step_size = float(info['stepSize'])
-    precision = abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
-    return round(quantity, precision)
+import requests
+import decimal
 
 def get_symbol_info(symbol):
-    url = f"{BASE_URL}/api/v1/market/getAllContracts"
+    url = f"{BASE_URL}/openApi/market/v2/getAllContracts"
     resp = requests.get(url)
     data = resp.json()
 
     if data.get("code") != 0:
         raise Exception(f"Fehler beim Laden der Symbolinfos: {data}")
 
-    for item in data["data"]:
-        if item["symbol"] == symbol:
+    for item in data.get("data", []):
+        if item.get("symbol") == symbol:
+            lot_size = float(item.get("lotSize", 0))
             return {
-                "symbol": item["symbol"],
-                "stepSize": float(item["lotSize"]),  # bei BingX heißt es oft lotSize
-                "tickSize": float(item["tickSize"]),
-                "minQty": float(item["minQty"]),
-                "maxQty": float(item["maxQty"])
+                "symbol": symbol,
+                "lotSize": lot_size,
+                "tickSize": float(item.get("tickSize", 0)),
+                "minQty": float(item.get("minQty", 0)),
+                "maxQty": float(item.get("maxQty", 0))
             }
+
     raise Exception(f"Symbol {symbol} nicht gefunden")
+
+def round_quantity(symbol, quantity):
+    info = get_symbol_info(symbol)
+    lot_size = info["lotSize"]
+    # Ermittle die Dezimalstellen der lotSize
+    precision = abs(decimal.Decimal(str(lot_size)).as_tuple().exponent)
+    return round(float(quantity), precision)
 
 
 def get_current_price(symbol: str):
@@ -510,35 +515,32 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                qty = round_quantity(symbol, float(position_size))
-                
-                close_long = place_market_order(
-                    api_key,
-                    secret_key,
-                    symbol,
-                    qty,
-                    side="SELL",
-                    position_side="LONG",
-                    reduce_only=True,
-                    is_contract_qty=True
-                )
-        
-                # Alphabetisch sortieren
+                qty = round_quantity(symbol, position_size)  # exakte Menge, die BingX akzeptiert
+            
+                params_dict = {
+                    "symbol": symbol,
+                    "side": "SELL",
+                    "type": "MARKET",
+                    "quantity": qty,
+                    "positionSide": "LONG",
+                    "reduceOnly": "true",  # String, korrekt
+                    "timestamp": int(time.time() * 1000)
+                }
+            
+                # Signatur erstellen
                 query_string = "&".join(f"{k}={params_dict[k]}" for k in sorted(params_dict))
                 signature = generate_signature(secret_key, query_string)
                 params_dict["signature"] = signature
-        
-                print("DEBUG SEND:", params_dict)  # <-- hier siehst du, was wirklich gesendet wird
-        
-                url = f"{BASE_URL}{ORDER_ENDPOINT}"
-                headers = {
-                    "X-BX-APIKEY": api_key,
-                    "Content-Type": "application/json"
-                }
-        
-                close_long = requests.post(url, headers=headers, json=params_dict).json()
-                logs.append(f"LONG Position geschlossen: {close_long}")
             
+                logs.append(f"DEBUG Order-Params: {params_dict}")
+            
+                # Request abschicken
+                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers={
+                    "X-BX-APIKEY": api_key,
+                    "X-SOURCE-KEY": SOURCE_KEY  # optional, wenn von BingX verlangt
+                }, json=params_dict).json()
+            
+                logs.append(f"LONG Position geschlossen: {response}")
             except Exception as e:
                 logs.append(f"Fehler beim Schließen der Position: {e}")
         
