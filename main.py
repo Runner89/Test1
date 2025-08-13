@@ -507,7 +507,7 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                qty = round_quantity(symbol, position_size)  # Runde auf validen Wert
+                qty = round_quantity(symbol, position_size)  # Lot Size anpassen
             
                 params = {
                     "symbol": symbol,
@@ -515,10 +515,11 @@ def webhook():
                     "type": "MARKET",
                     "quantity": qty,
                     "positionSide": "LONG",
-                    "reduceOnly": "true",
+                    "reduceOnly": True,  # Boolean, nicht String
                     "timestamp": int(time.time() * 1000)
                 }
-                query = "&".join(f"{k}={params[k]}" for k in sorted(params))
+            
+                query = "&".join(f"{k}={str(params[k]).lower() if isinstance(params[k], bool) else params[k]}" for k in sorted(params))
                 signature = generate_signature(secret_key, query)
                 params["signature"] = signature
             
@@ -526,9 +527,10 @@ def webhook():
             
                 headers = {
                     "X-BX-APIKEY": api_key,
-                    # ggf. auch Source-Key falls benötigt
+                    "Content-Type": "application/x-www-form-urlencoded"
                 }
-                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, json=params).json()
+            
+                response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
                 logs.append(f"LONG Position geschlossen: {response}")
             
             except Exception as e:
