@@ -460,7 +460,7 @@ def webhook():
         status_fuer_alle[botname] = "OK"
         alarm_counter[botname] = -1
     
-        logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+        #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
     
         if botname in saved_usdt_amounts:
             del saved_usdt_amounts[botname]
@@ -471,7 +471,7 @@ def webhook():
             usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
             saved_usdt_amounts[botname] = usdt_amount
             logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
-            logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+            
     
     # Wenn globale Variable vorhanden → nächste Orders
     else:
@@ -480,7 +480,7 @@ def webhook():
             usdt_amount = saved_usdt_amount * usdt_factor
             saved_usdt_amounts[botname] = usdt_amount
             logs.append(f"Nächste Ordergröße mit Faktor {usdt_factor} berechnet: {usdt_amount}")
-            logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+           
         else:
             # Fallback aus Firebase
             try:
@@ -501,6 +501,7 @@ def webhook():
     logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
     order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
     alarm_counter[botname] += 1
+    logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
     time.sleep(2)
     logs.append(f"Market-Order Antwort: {order_response}")
 
