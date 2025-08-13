@@ -298,18 +298,18 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
 
 def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
     import requests
-
+    import time
 
     # Daten, die gespeichert werden sollen
     data = {
         "price": price,
-        "usdt_amount": usdt_amount
+        "usdt_amount": usdt_amount,
+        "timestamp": int(time.time())  # optional: für Sortierung/Verlauf
     }
 
-    # URL zusammenbauen mit Authentifizierung
+    # URL für POST, damit ein neuer Eintrag angelegt wird (Firebase generiert automatisch Key)
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
 
-    # HTTP PUT oder POST, je nach Bedarf
     response = requests.post(url, json=data)
 
     if response.status_code == 200:
