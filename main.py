@@ -507,34 +507,39 @@ def webhook():
             # 2. Position(en) schließen
             try:
                 position_size, _, _ = get_current_position(api_key, secret_key, symbol, "LONG", logs)
-                qty = round_quantity(symbol, position_size)  # Lot Size anpassen
-            
+                qty = round_quantity(symbol, position_size)
+                
                 params = {
                     "symbol": symbol,
                     "side": "SELL",
                     "type": "MARKET",
                     "quantity": qty,
                     "positionSide": "LONG",
-                    "reduceOnly": True,  # Boolean, nicht String
+                    "reduceOnly": True,
                     "timestamp": int(time.time() * 1000)
                 }
-            
-                query = "&".join(f"{k}={str(params[k]).lower() if isinstance(params[k], bool) else params[k]}" for k in sorted(params))
+                
+                # Sortieren & bool in lowercase-string konvertieren
+                sorted_params = sorted(params.items())
+                query = "&".join(f"{k}={str(v).lower() if isinstance(v, bool) else v}" for k, v in sorted_params)
+                
                 signature = generate_signature(secret_key, query)
                 params["signature"] = signature
-            
+                
                 logs.append(f"DEBUG Order-Params: {params}")
-            
+                
                 headers = {
                     "X-BX-APIKEY": api_key,
                     "Content-Type": "application/x-www-form-urlencoded"
                 }
-            
+                
+                # POST als form-data, nicht JSON
                 response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
                 logs.append(f"LONG Position geschlossen: {response}")
             
-            except Exception as e:
-                logs.append(f"Fehler beim Schließen der Position: {e}")
+        except Exception as e:
+        logs.append(f"Fehler beim Schließen der Position: {e}")
+
         
             # 3. Lokale Variablen & Alarm zurücksetzen
             if botname in saved_usdt_amounts:
