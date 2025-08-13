@@ -299,8 +299,6 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
 def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
     import requests
 
-    # Deine Firebase-URL, eventuell aus einer Konstanten
-    FIREBASE_URL = "https://dein-projekt.firebaseio.com"
 
     # Daten, die gespeichert werden sollen
     data = {
