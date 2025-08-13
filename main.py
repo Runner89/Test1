@@ -299,37 +299,67 @@ def firebase_loesche_ordergroesse(botname, firebase_secret):
 import requests
 import time
 
-def firebase_speichere_kaufpreis(botname, price, usdt_amount, firebase_secret):
-    
-    #Speichert einen Kaufpreis-Eintrag in Firebase unter /kaufpreise/{botname}.
-    #Stellt sicher, dass price, usdt_amount und timestamp korrekt als float/int gespeichert werden.
-    
+import requests
+import time
+
+FIREBASE_URL = "https://DEIN-PROJEKT.firebaseio.com/kaufpreise"
+
+def save_kaufpreis(botname, price, usdt_amount):
+    """
+    Speichert den Kaufpreis für einen Bot in Firebase.
+    Verhindert, dass None/Null-Werte gespeichert werden.
+    """
+    if price is None or usdt_amount is None:
+        print(f"[WARNING] Ungültige Daten, nicht speichern: price={price}, usdt_amount={usdt_amount}")
+        return False
+
+    data = {
+        "price": float(price),
+        "usdt_amount": float(usdt_amount),
+        "timestamp": int(time.time() * 1000)
+    }
+
     try:
-        # Absichern, dass price und usdt_amount Zahlen sind
-        price = float(price)
-        usdt_amount = float(usdt_amount)
-        timestamp = int(time.time())
-
-        data = {
-            "price": price,
-            "usdt_amount": usdt_amount,
-            "timestamp": timestamp
-        }
-
-        url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
-        
-        # Debug Logging
-        print(f"[DEBUG] Sende Daten an Firebase: {data}")
-        
-        response = requests.post(url, json=data)
-        
+        response = requests.post(f"{FIREBASE_URL}/{botname}.json", json=data)
         if response.status_code == 200:
-            print(f"[Firebase] Kaufpreis erfolgreich gespeichert: {data}")
+            print(f"[Firebase] Kaufpreis gespeichert für {botname}: {data}")
+            return True
         else:
-            print(f"[Firebase] Fehler beim Speichern: {response.status_code}, {response.text}")
-    
+            print(f"[ERROR] Firebase-Fehler {response.status_code}: {response.text}")
+            return False
     except Exception as e:
-        print(f"[ERROR] Fehler beim Speichern des Kaufpreises: {e}")
+        print(f"[ERROR] Firebase-Exception: {e}")
+        return False
+
+def read_kaufpreise(botname):
+    """
+    Liest alle Kaufpreise eines Bots aus Firebase.
+    Filtert ungültige Einträge heraus.
+    """
+    try:
+        response = requests.get(f"{FIREBASE_URL}/{botname}.json")
+        if response.status_code != 200:
+            print(f"[ERROR] Firebase-Fehler {response.status_code}: {response.text}")
+            return []
+
+        data = response.json()
+        if not data:
+            print(f"[Firebase] Keine Kaufpreise gefunden für {botname}")
+            return []
+
+        # Filter: Nur Einträge mit gültigem Preis und USDT-Amount
+        valid_prices = [
+            entry for entry in data.values()
+            if entry.get("price") is not None and entry.get("usdt_amount") is not None
+        ]
+
+        print(f"[Firebase] Gelesene Kaufpreise für {botname}: {valid_prices}")
+        return valid_prices
+
+    except Exception as e:
+        print(f"[ERROR] Firebase-Exception: {e}")
+        return []
+
 
 def firebase_loesche_kaufpreise(botname, firebase_secret):
     url = f"{FIREBASE_URL}/kaufpreise/{botname}.json?auth={firebase_secret}"
