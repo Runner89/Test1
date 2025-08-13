@@ -515,7 +515,7 @@ def webhook():
                     "type": "MARKET",
                     "quantity": qty,
                     "positionSide": "LONG",
-                    "reduceOnly": True,
+                    "reduceOnly": true,
                     "timestamp": int(time.time() * 1000)
                 }
                 
