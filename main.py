@@ -106,9 +106,8 @@ def round_quantity(symbol, quantity):
 
 def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
     try:
-        # 1. Serverzeit holen
-        timestamp = get_server_time()
-        params["timestamp"] = timestamp
+        # 1. Aktuelle Zeit in ms
+        timestamp = int(time.time() * 1000)
 
         # 2. Parameter vorbereiten
         params = {
@@ -121,10 +120,9 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
             "timestamp": timestamp
         }
 
-        # 3. Signatur erstellen
-        sorted_params = sorted(params.items())
-        query = "&".join(f"{k}={v}" for k, v in sorted_params)
-        params["signature"] = generate_signature(secret_key, query)
+        # 3. Signatur erstellen (URL-encoded Query)
+        query_string = urlencode(sorted(params.items()))
+        params["signature"] = generate_signature(secret_key, query_string)
 
         logs.append(f"DEBUG Order-Params: {params}")
 
@@ -133,12 +131,10 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
         }
-        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
 
-        if response.get("code") == 0:
-            logs.append(f"{position_side.upper()} Position geschlossen: {response}")
-        else:
-            logs.append(f"Fehler beim Schließen der Position: {response}")
+        response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params)
+        response_data = response.json()
+        logs.append(f"{position_side.upper()} Position geschlossen: {response_data}")
 
     except Exception as e:
         logs.append(f"Fehler beim Schließen der Position: {e}")
