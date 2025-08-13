@@ -459,12 +459,12 @@ def webhook():
             "msg": f"Alle offenen Orders, Positionen und Cache/Firebase-Daten für {symbol} gelöscht",
             "logs": logs
         })
-        except Exception as e:
-            return jsonify({
-                "error": True,
-                "msg": f"Fehler bei close: {e}",
-                "logs": logs
-            }), 500
+    except Exception as e:
+        return jsonify({
+            "error": True,
+            "msg": f"Fehler bei close: {e}",
+            "logs": logs
+        }), 500
 
 else:    
 
