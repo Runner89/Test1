@@ -479,12 +479,13 @@ def webhook():
             except Exception as e:
                 print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
 
-         # **Hier ein Response zurückgeben**
-        return jsonify({
-            "status": "position_closed",
-            "botname": botname,
-            "logs": ergebnis.get("logs", []),
-            "result": ergebnis.get("result")
+             # **Hier ein Response zurückgeben**
+            return jsonify({
+                "status": "position_closed",
+                "botname": botname,
+                "logs": ergebnis.get("logs", []),
+                "result": ergebnis.get("result", None)
+            })  # <-- alle Klammern geschlossen
     else:     
 
         available_usdt = 0.0
