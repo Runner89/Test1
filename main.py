@@ -100,11 +100,14 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
         # 1. Serverzeit von BingX holen
         server_time_resp = requests.get(f"{BASE_URL}/api/v1/common/time")
         server_time_resp.raise_for_status()
-        server_time = server_time_resp.json().get("serverTime")
-        if server_time is None:
-            server_time = server_time_resp.json().get("time")
+        server_time_json = server_time_resp.json()
 
-        # 2. Parameter vorbereiten
+        # 2. Zeit extrahieren, fallback falls Feld anders heißt
+        server_time = server_time_json.get("serverTime") or server_time_json.get("time")
+        if server_time is None:
+            raise ValueError(f"Serverzeit konnte nicht ermittelt werden: {server_time_json}")
+
+        # 3. Parameter vorbereiten
         params = {
             "symbol": symbol,
             "side": "SELL" if position_side == "LONG" else "BUY",
@@ -112,22 +115,21 @@ def close_position(api_key, secret_key, symbol, position_side, quantity, logs):
             "quantity": str(quantity),
             "positionSide": position_side,
             "reduceOnly": "true",
-            "timestamp": server_time  # <- hier die Serverzeit verwenden
+            "timestamp": server_time
         }
 
-        # 3. Signatur erstellen
+        # 4. Signatur erstellen
         sorted_params = sorted(params.items())
         query = "&".join(f"{k}={v}" for k, v in sorted_params)
         params["signature"] = generate_signature(secret_key, query)
 
         logs.append(f"DEBUG Order-Params: {params}")
 
-        # 4. Request senden (Form-Data, nicht JSON)
+        # 5. Request senden
         headers = {
             "X-BX-APIKEY": api_key,
             "Content-Type": "application/x-www-form-urlencoded"
         }
-
         response = requests.post(f"{BASE_URL}{ORDER_ENDPOINT}", headers=headers, data=params).json()
         logs.append(f"{position_side.upper()} Position geschlossen: {response}")
 
