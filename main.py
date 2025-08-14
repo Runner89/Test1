@@ -532,10 +532,11 @@ def webhook():
         usdt_amount = 0
 
         
-    
+        
         open_sell_orders_exist = False
 
-        if (side2 != "long" or side2 == "") and botname:    #if side2 != "long" and botname:
+        
+        if side2 and side2.lower() != "long" and botname:
             open_sell_orders_exist = True
         logs.append(f"side2={side2}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
         
