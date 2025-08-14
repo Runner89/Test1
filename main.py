@@ -775,7 +775,16 @@ def webhook():
         limit_order_response = None
     
         position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-     
+        
+        eroeffnungszeit_dt = datetime.fromisoformat(eroeffnungszeit)
+        # Prüfen, ob älter als 48 Stunden
+        if datetime.now(timezone.utc) - eroeffnungszeit_dt > timedelta(hours=48):
+            logs.append(f"Eröffnungszeit für {botname} ist älter als 2 Tage: {eroeffnungszeit}")
+            # Hier kannst du z.B. Firebase aktualisieren oder andere Aktionen durchführen
+            sell_percentage = 0.1
+        else:
+            logs.append(f"Eröffnungszeit für {botname} ist noch aktuell: {eroeffnungszeit}")
+             
         try:
             if durchschnittspreis and sell_percentage:
                 limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
