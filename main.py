@@ -39,7 +39,7 @@
 
 
 from flask import Flask, request, jsonify
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import time
 import hmac
 import hashlib
@@ -733,25 +733,32 @@ def webhook():
                     sende_telegram_nachricht(botname, f"❌ Fallback von BINGX fehlgeschlagen für Bot: {botname}")
 
         # Eröffnungszeit erfassen wenn leer
-        # Prüfen, ob der Bot schon eine Eröffnungszeit in der globalen Variable hat
-        if botname not in eroeffnungszeiten_fuer_alle:
-            # Wenn nicht, zuerst globale Variable speichern (Firebase prüfen)
-            url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
-            resp = requests.get(url)
+        if not open_sell_orders_exist:
             
-            if resp.status_code == 200 and resp.json():  # Zeit in Firebase vorhanden
-                eroeffnungszeit = resp.json()
-                logs.append(f"Eröffnungszeit aus Firebase für {botname} geladen: {eroeffnungszeit}")
-            else:  # Keine Zeit in Firebase → neue erstellen und speichern
-                eroeffnungszeit = datetime.now(timezone.utc).isoformat()
-                logs.append(firebase_speichere_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
-                logs.append(f"Neue Eröffnungszeit für {botname} gespeichert: {eroeffnungszeit}")
+            del eroeffnungszeiten_fuer_alle[botname]
+            logs.append(firebase_loesche_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
+            
+            # Prüfen, ob der Bot schon eine Eröffnungszeit in der globalen Variable hat
+            if botname not in eroeffnungszeiten_fuer_alle:
+                # Wenn nicht, zuerst globale Variable speichern 
+                url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
+                resp = requests.get(url)
+                
+                if resp.status_code == 200 and resp.json():  # Zeit in Firebase vorhanden
+                    eroeffnungszeit = resp.json()
+                    logs.append(f"Eröffnungszeit aus Firebase für {botname} geladen: {eroeffnungszeit}")
+                else:  # Keine Zeit in Firebase → neue erstellen und speichern
+                    eroeffnungszeit = datetime.now(timezone.utc).isoformat()
+                    logs.append(firebase_speichere_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
+                    logs.append(f"Neue Eröffnungszeit für {botname} gespeichert: {eroeffnungszeit}")
         
-            # Globale Variable aktualisieren
-            eroeffnungszeiten_fuer_alle[botname] = eroeffnungszeit
-        else:
-            eroeffnungszeit = eroeffnungszeiten_fuer_alle[botname]
-            logs.append(f"Eröffnungszeit aus globaler Variable ({botname}): {eroeffnungszeit}")
+                # Globale Variable aktualisieren
+                eroeffnungszeiten_fuer_alle[botname] = eroeffnungszeit
+            else:
+                eroeffnungszeit = eroeffnungszeiten_fuer_alle[botname]
+                logs.append(f"Eröffnungszeit aus globaler Variable ({botname}): {eroeffnungszeit}")
+
+        
             
         # 9. Alte Sell-Limit-Orders löschen
         try:
