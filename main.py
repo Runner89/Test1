@@ -12,24 +12,25 @@
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
 #Wenn action=close ist, wird Position geschlossen
 #Wenn side=long ist, wird daraus abgeleitet, dass es nicht die erste Order ist
+#vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
 
 #https://......../webhook
-#{
+# "side: long" und action wird vom vyn genommen
+
+#{"vyn":{{strategy.order.alert_message}}, RENDER": {"api_key": {
 #    "api_key": "",
 #    "secret_key": "",
 #    "symbol": "BABY-USDT",
 #    "botname": "Baby_Bot", # muss einmalig sein
 #    "position_side": "LONG",
 #    "sell_percentage": 2.5,
-#    "price": 0.068186,
+#    "price": {{close}},
 #    "leverage": 1,
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
 #    "pyramiding": 8,
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
 #    "usdt_factor": 1.4,
-#    "side": "long" Wenn es die erste Order ist
-#    "action: "close" Dann wird position geschlossen
 #}
 #    Berechnung Ordergrösse
 #    verfügbares Guthaben x leverage
@@ -444,18 +445,18 @@ def webhook():
     saved_usdt_amount = saved_usdt_amounts.get(botname)
 
     # Eingabewerte
-    pyramiding = float(data.get("pyramiding", 1))
-    leverageB = float(data.get("leverage", 1))
-    sicherheit = float(data.get("sicherheit", 0) * leverageB)
-    sell_percentage = data.get("sell_percentage")
-    api_key = data.get("api_key")
-    secret_key = data.get("secret_key")
-    position_side = data.get("position_side") or data.get("positionSide") or "LONG"
-    firebase_secret = data.get("FIREBASE_SECRET")
-    price_from_webhook = data.get("price")
-    usdt_factor = float(data.get("usdt_factor", 1))
-    action = data.get("action", "").lower() 
-    side2 = data.get("side", "").lower() 
+    pyramiding = float(data.get("RENDER", {}).get("pyramiding", 1))  #float(data.get("pyramiding", 1))
+    leverageB = float(data.get("RENDER", {}).get("leverage", 1))     #float(data.get("leverage", 1))
+    sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverage_render)    #float(data.get("sicherheit", 0) * leverageB)
+    sell_percentage = data.get("RENDER", {}).get("sell_percentage")    #data.get("sell_percentage")
+    api_key = data.get("RENDER", {}).get("api_key")    #data.get("api_key")
+    secret_key = data.get("RENDER", {}).get("secret_key")   #data.get("secret_key")
+    position_side = data.get("RENDER", {}).get("position_side") or data.get("RENDER", {}).get("positionSide") or "LONG"    #data.get("position_side") or data.get("positionSide") or "LONG"
+    firebase_secret = data.get("RENDER", {}).get("FIREBASE_SECRET")    #data.get("FIREBASE_SECRET")
+    price_from_webhook = data.get("RENDER", {}).get("price")    #data.get("price")
+    usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
+    action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower() 
+    side2 = data.get("vyn", {}).get("side", "").lower()    ##KOMMT VON VYN    data.get("side", "").lower() 
     
 
     if not api_key or not secret_key:
