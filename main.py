@@ -447,7 +447,7 @@ def webhook():
     # Eingabewerte
     pyramiding = float(data.get("RENDER", {}).get("pyramiding", 1))  #float(data.get("pyramiding", 1))
     leverageB = float(data.get("RENDER", {}).get("leverage", 1))     #float(data.get("leverage", 1))
-    sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverage_render)    #float(data.get("sicherheit", 0) * leverageB)
+    sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverageB)    #float(data.get("sicherheit", 0) * leverageB)
     sell_percentage = data.get("RENDER", {}).get("sell_percentage")    #data.get("sell_percentage")
     api_key = data.get("RENDER", {}).get("api_key")    #data.get("api_key")
     secret_key = data.get("RENDER", {}).get("secret_key")   #data.get("secret_key")
