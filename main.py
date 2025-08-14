@@ -39,6 +39,7 @@
 
 
 from flask import Flask, request, jsonify
+from datetime import datetime, timezone
 import time
 import hmac
 import hashlib
@@ -72,6 +73,8 @@ def get_futures_balance(api_key: str, secret_key: str):
     headers = {"X-BX-APIKEY": api_key}
     response = requests.get(url, headers=headers)
     return response.json()
+
+
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -319,6 +322,34 @@ def cancel_order(api_key, secret_key, symbol, order_id):
     response = requests.delete(url, headers=headers)
     return response.json()
 
+def firebase_speichere_eroeffnungszeit(botname, timestamp, firebase_secret):
+    try:
+        # Hier z. B. per requests.post() an Firebase REST API
+        url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
+        payload = {"timestamp": timestamp}
+        response = requests.put(url, json=payload)
+        return f"Eröffnungszeit gespeichert: {timestamp} ({response.status_code})"
+    except Exception as e:
+        return f"Fehler beim Speichern der Eröffnungszeit: {e}"
+
+def firebase_lese_eroeffnungszeit(botname, firebase_secret):
+    url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def firebase_loesche_eroeffnungszeit(botname, firebase_secret):
+    try:
+        url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
+        response = requests.delete(url)
+        if response.status_code == 200:
+            return f"Eröffnungszeit für {botname} gelöscht"
+        else:
+            return f"Fehler beim Löschen der Eröffnungszeit: {response.status_code}"
+    except Exception as e:
+        return f"Fehler beim Löschen der Eröffnungszeit: {e}"
+
 # --- Firebase Funktionen jetzt mit botname statt asset ---
 def firebase_speichere_ordergroesse(botname, betrag, firebase_secret):
     url = f"{FIREBASE_URL}/ordergroesse/{botname}.json?auth={firebase_secret}"
@@ -482,6 +513,7 @@ def webhook():
                 logs = []
                 logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
                 logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                logs.append(firebase_loesche_eroeffnungszeit(botname, firebase_secret)) 
                 print("\n".join(logs))
             except Exception as e:
                 print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
@@ -564,8 +596,9 @@ def webhook():
                 usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
                 saved_usdt_amounts[botname] = usdt_amount
                 logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
+                logs.append(firebase_loesche_eroeffnungszeit(botname, firebase_secret)) 
                 
-        
+                
         # Wenn globale Variable vorhanden → nächste Orders
         else:
             saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
@@ -696,6 +729,16 @@ def webhook():
                 except Exception as e:
                     logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
                     sende_telegram_nachricht(botname, f"❌ Fallback von BINGX fehlgeschlagen für Bot: {botname}")
+
+        # Eröffnungszeit erfassen wenn leer
+        url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
+        resp = requests.get(url)
+        if resp.status_code == 200 and not resp.json():  # nur speichern, wenn leer/null
+            eroeffnungszeit = datetime.now(timezone.utc).isoformat()
+            logs.append(firebase_speichere_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
+        else:
+            logs.append(f"Eröffnungszeit schon vorhanden: {resp.json()}")
+            
     
         # 9. Alte Sell-Limit-Orders löschen
         try:
