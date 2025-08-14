@@ -536,8 +536,11 @@ def webhook():
         open_sell_orders_exist = False
 
         
-        if side2 and side2.lower() != "long" and botname:
+        if side2 == "":  # Nachkauforder
             open_sell_orders_exist = True
+        else:  # erste Order
+            open_sell_orders_exist = False
+        
         logs.append(f"side2={side2}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
         
         
