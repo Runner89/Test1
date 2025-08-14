@@ -531,7 +531,7 @@ def webhook():
     
         open_sell_orders_exist = False
 
-        if side == "long" and botname:
+        if side2 == "long" and botname:
             open_sell_orders_exist = True
         
         
