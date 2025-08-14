@@ -10,7 +10,8 @@
 #StopLoss 3% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
-#Wenn action=close ist wird Position geschlossen
+#Wenn action=close ist, wird Position geschlossen
+#Wenn side=long ist, wird daraus abgeleitet, dass es nicht die erste Order ist
 
 #https://......../webhook
 #{
@@ -26,7 +27,9 @@
 #    "alarm": 1,
 #    "pyramiding": 8,
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
-#    "usdt_factor": 1.4
+#    "usdt_factor": 1.4,
+#    "side": "long" Wenn es die erste Order ist
+#    "action: "close" Dann wird position geschlossen
 #}
 #    Berechnung Ordergrösse
 #    verfügbares Guthaben x leverage
@@ -617,7 +620,7 @@ def webhook():
             sell_quantity = 0
             stop_loss_price = None
             logs.append(f"Fehler bei Positions- oder Liquidationspreis-Abfrage: {e}")
-            sende_telegram_nachricht(botname, f"Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
+            sende_telegram_nachricht(botname, f"❌ Fehler bei Positions- oder Liquidationspreis-Abfrage {botname}: {e}")
     
         # 6. Kaufpreise ggf. löschen
         if firebase_secret and not open_sell_orders_exist:
