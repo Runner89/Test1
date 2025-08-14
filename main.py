@@ -578,13 +578,24 @@ def webhook():
                     sende_telegram_nachricht(botname, f"❌ Fehler beim Lesen der Ordergröße aus Firebase {botname}: {e}")
     
         # 4. Market-Order ausführen
-        logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
-        order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
-        alarm_counter[botname] += 1
-        logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
-        time.sleep(2)
-        logs.append(f"Market-Order Antwort: {order_response}")
-    
+        try:
+            logs.append(f"Plaziere Market-Order mit {usdt_amount} USDT für {symbol} ({position_side})...")
+            order_response = place_market_order(api_key, secret_key, symbol, float(usdt_amount), position_side)
+            alarm_counter[botname] += 1
+            logs.append(firebase_speichere_ordergroesse(botname, usdt_amount, firebase_secret))
+            time.sleep(2)
+            logs.append(f"Market-Order Antwort: {order_response}")
+
+            # API-Antwort prüfen
+            if not order_response or order_response.get("code") != 0:
+                status_fuer_alle[botname] = "Fehler"
+                logs.append(order_response)
+                sende_telegram_nachricht(botname, f"❌❌❌ Marketorder konnte nicht gesetzt werden für Bot: {botname}")
+        except Exception as e:
+            logs.append(f"Fehler bei Marketorder: {e}")
+            status_fuer_alle[botname] = "Fehler"
+            sende_telegram_nachricht(botname, f"❌❌❌ Marketorder konnte nicht gesetzt werden für Bot: {botname}")
+            
         # 5. Positionsgröße und Liquidationspreis ermitteln
         try:
             sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
