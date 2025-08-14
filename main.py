@@ -434,11 +434,11 @@ def webhook():
     data = request.json
     logs = []
 
-    botname = data.get("botname")
+    botname = data.get("RENDER", {}).get("botname")    #data.get("botname")
     if not botname:
         return jsonify({"error": True, "msg": "botname ist erforderlich"}), 400
 
-    symbol = data.get("symbol", "BTC-USDT")
+    symbol = data.get("RENDER", {}).get("symbol", "")  #data.get("symbol", "BTC-USDT")
     base_asset = symbol.split("-")[0]  # Nur für menschliche Logs
 
     # Hole den gespeicherten Wert für den Bot, falls vorhanden
