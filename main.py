@@ -744,7 +744,7 @@ def webhook():
             logs.append(f"Fehler beim Setzen der Stop-Loss Order: {e}")
             sende_telegram_nachricht(botname, f"❌ Fehler beim Setzen des Stop Loss für Bot: {botname}")
     
-        alarm_trigger = int(data.get("alarm", 0))
+        alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))  #int(data.get("alarm", 0))
     
         if status_fuer_alle.get(botname) == "Fehler":
             anzahl_nachkäufe = alarm_counter[botname] 
