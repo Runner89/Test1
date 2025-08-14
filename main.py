@@ -11,11 +11,11 @@
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
 #Wenn action=close ist, wird Position geschlossen
-#Wenn side=long ist, wird daraus abgeleitet, dass es nicht die erste Order ist
+#Wenn action nicht gefunden wird, ist es die Baseorder
 #vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
 
 #https://......../webhook
-# "side: long" und action wird vom vyn genommen
+# action wird vom vyn genommen
 
 #{"vyn":{{strategy.order.alert_message}}, RENDER": {"api_key": {
 #    "api_key": "",
@@ -456,7 +456,7 @@ def webhook():
     price_from_webhook = data.get("RENDER", {}).get("price")    #data.get("price")
     usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
     action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower() 
-    side2 = data.get("vyn", {}).get("side", "").lower()    ##KOMMT VON VYN    data.get("side", "").lower() 
+
     
 
     if not api_key or not secret_key:
@@ -536,12 +536,12 @@ def webhook():
         open_sell_orders_exist = False
 
         
-        if side2 == "":  # Nachkauforder
+        if action == "increase":  # Nachkauforder
             open_sell_orders_exist = True
         else:  # erste Order
             open_sell_orders_exist = False
         
-        logs.append(f"side2={side2}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
+        logs.append(f"action={action}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
         
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
