@@ -30,8 +30,8 @@
 #    "alarm": 1,
 #    "pyramiding": 8,
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
-#    "usdt_factor": 1.4,
-#}
+#    "usdt_factor": 1.4
+#}}
 #    Berechnung Ordergrösse
 #    verfügbares Guthaben x leverage
 #    - (Sicherheit x leverage)
