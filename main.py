@@ -452,6 +452,7 @@ def webhook():
     price_from_webhook = data.get("price")
     usdt_factor = float(data.get("usdt_factor", 1))
     action = data.get("action", "").lower() 
+    side2 = data.get("side", "").lower() 
     
 
     if not api_key or not secret_key:
@@ -525,14 +526,14 @@ def webhook():
     
         # 3. Ordergröße ermitteln (Compounding-Logik)
         usdt_amount = 0
-        open_sell_orders_exist = False
+
         
-        # Prüfen, ob es offene SELL-Limit Orders gibt
-        if isinstance(open_orders, dict) and open_orders.get("code") == 0:
-            for order in open_orders.get("data", {}).get("orders", []):
-                if order.get("side") == "SELL" and order.get("positionSide") == position_side and order.get("type") == "LIMIT":
-                    open_sell_orders_exist = True
-                    break
+    
+        open_sell_orders_exist = False
+
+        if side == "long" and botname:
+            open_sell_orders_exist = True
+        
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
         if not open_sell_orders_exist:
