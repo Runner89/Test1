@@ -780,28 +780,49 @@ def webhook():
         # Prüfen, ob älter als 48 Stunden
         if datetime.now(timezone.utc) - eroeffnungszeit_dt > timedelta(hours=48):
             logs.append(f"Eröffnungszeit für {botname} ist älter als 2 Tage: {eroeffnungszeit}")
-            # Hier kannst du z.B. Firebase aktualisieren oder andere Aktionen durchführen
-            sell_percentage = 0.1
+           
+            try:
+                for pos in positions_raw:
+                    if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                        # Durchschnittspreis von BingX
+                        avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                        if avg_price > 0:
+                            durchschnittspreis = round(avg_price, 6)
+                            
+                            # Limit-Preis 0,1 % über dem Durchschnittspreis
+                            limit_price = round(durchschnittspreis * 1.001, 6)
+                            
+                            # Sell-Order platzieren
+                            limit_order_response = place_limit_sell_order(
+                                api_key, secret_key, symbol, sell_quantity, limit_price, position_side
+                            )
+                            
+                            logs.append(f"Limit-Order gesetzt für Bot {botname} (0,1% über Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
+                            sende_telegram_nachricht(botname, f"ℹ️ Sell-Limit-Order 0,1% über Durchschnittspreis von BINGX für Bot: {botname}")
+                        break
+            except Exception as e:
+                logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
+        
         else:
             logs.append(f"Eröffnungszeit für {botname} ist noch aktuell: {eroeffnungszeit}")
              
-        try:
-            if durchschnittspreis and sell_percentage:
-                limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
-            else:
-                limit_price = 0
-    
-            sell_quantity = min(sell_quantity, position_size)
-    
-            if sell_quantity > 0 and limit_price > 0:
-                limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
-                logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
-            else:
-                logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
-                sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
-        except Exception as e:
-            logs.append(f"Fehler bei Limit-Order: {e}")
-            sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
+            try:
+                if durchschnittspreis and sell_percentage:
+                    limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
+                else:
+                    limit_price = 0
+        
+                sell_quantity = min(sell_quantity, position_size)
+        
+                if sell_quantity > 0 and limit_price > 0:
+                    limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
+                    logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
+                else:
+                    logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
+                    sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
+            except Exception as e:
+                logs.append(f"Fehler bei Limit-Order: {e}")
+                sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
     
         # 11. Bestehende STOP_MARKET SL-Orders löschen
         try:
