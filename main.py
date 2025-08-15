@@ -9,7 +9,6 @@
 #Ordergrösse wird in Variable gespeichert, Firebase wird nur als Backup verwendet
 #StopLoss 3% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
-#Wenn Positin länger als 48 h offen, dann wird die Limit-Sell-Order 0.1% oberhalb des Bingx Durchschnittspreises gesetzt, egal was im Webhook angegeben wurde
 #Falls Status Fehler werden für den Alarm nicht die Anzahl Kaufpreise gezählt, sondern von der Variablen alarm_counter
 #Wenn action=close ist, wird Position geschlossen
 #Wenn action nicht gefunden wird, ist es die Baseorder
@@ -40,7 +39,6 @@
 
 
 from flask import Flask, request, jsonify
-from datetime import datetime, timezone, timedelta
 import time
 import hmac
 import hashlib
@@ -62,7 +60,6 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 saved_usdt_amounts = {}  # globales Dict für alle Coins
 status_fuer_alle = {} 
 alarm_counter = {}
-eroeffnungszeiten_fuer_alle = {}
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -75,8 +72,6 @@ def get_futures_balance(api_key: str, secret_key: str):
     headers = {"X-BX-APIKEY": api_key}
     response = requests.get(url, headers=headers)
     return response.json()
-
-
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -324,34 +319,6 @@ def cancel_order(api_key, secret_key, symbol, order_id):
     response = requests.delete(url, headers=headers)
     return response.json()
 
-def firebase_speichere_eroeffnungszeit(botname, timestamp, firebase_secret):
-    try:
-        # Hier z. B. per requests.post() an Firebase REST API
-        url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
-        payload = {"timestamp": timestamp}
-        response = requests.put(url, json=payload)
-        return f"Eröffnungszeit gespeichert: {timestamp} ({response.status_code})"
-    except Exception as e:
-        return f"Fehler beim Speichern der Eröffnungszeit: {e}"
-
-def firebase_lese_eroeffnungszeit(botname, firebase_secret):
-    url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
-
-def firebase_loesche_eroeffnungszeit(botname, firebase_secret):
-    try:
-        url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
-        response = requests.delete(url)
-        if response.status_code == 200:
-            return f"Eröffnungszeit für {botname} gelöscht"
-        else:
-            return f"Fehler beim Löschen der Eröffnungszeit: {response.status_code}"
-    except Exception as e:
-        return f"Fehler beim Löschen der Eröffnungszeit: {e}"
-
 # --- Firebase Funktionen jetzt mit botname statt asset ---
 def firebase_speichere_ordergroesse(botname, betrag, firebase_secret):
     url = f"{FIREBASE_URL}/ordergroesse/{botname}.json?auth={firebase_secret}"
@@ -463,7 +430,6 @@ def webhook():
     global saved_usdt_amounts
     global status_fuer_alle
     global alarm_counter
-    global eroeffnungszeiten_fuer_alle 
 
     data = request.json
     logs = []
@@ -516,7 +482,6 @@ def webhook():
                 logs = []
                 logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
                 logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-                logs.append(firebase_loesche_eroeffnungszeit(botname, firebase_secret)) 
                 print("\n".join(logs))
             except Exception as e:
                 print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
@@ -557,33 +522,29 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
     
+        # 2. Offene Orders abrufen
+        open_orders = {}
+        try:
+            open_orders = get_open_orders(api_key, secret_key, symbol)
+            logs.append(f"Open Orders: {open_orders}")
+        except Exception as e:
+            logs.append(f"Fehler bei Orderprüfung: {e}")
+            sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
     
         # 3. Ordergröße ermitteln (Compounding-Logik)
         usdt_amount = 0
 
-
-        # 3. Positionsstatus prüfen (NEU)
-        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
-        
-        position_open = False
-        for pos in positions_raw:
-            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                position_size = float(pos.get("positionAmt", 0) or pos.get("size", 0))
-                if position_size > 0:
-                    position_open = True
-                break
         
         
         open_sell_orders_exist = False
 
         
-        # 4. Festlegen, ob es wirklich ein Nachkauf ist
-        if action == "increase" and position_open:
+        if action == "increase":  # Nachkauforder
             open_sell_orders_exist = True
-        else:
+        else:  # erste Order
             open_sell_orders_exist = False
         
-        logs.append(f"action={action}, botname={botname}, position_open={position_open}, open_sell_orders_exist={open_sell_orders_exist}")
+        logs.append(f"action={action}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
         
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
@@ -603,9 +564,8 @@ def webhook():
                 usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
                 saved_usdt_amounts[botname] = usdt_amount
                 logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
-                logs.append(firebase_loesche_eroeffnungszeit(botname, firebase_secret)) 
                 
-                
+        
         # Wenn globale Variable vorhanden → nächste Orders
         else:
             saved_usdt_amount = saved_usdt_amounts.get(botname, 0)
@@ -736,35 +696,7 @@ def webhook():
                 except Exception as e:
                     logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
                     sende_telegram_nachricht(botname, f"❌ Fallback von BINGX fehlgeschlagen für Bot: {botname}")
-
-        # Eröffnungszeit erfassen wenn leer
-        if not open_sell_orders_exist:
-            
-            del eroeffnungszeiten_fuer_alle[botname]
-            logs.append(firebase_loesche_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
-            
-            # Prüfen, ob der Bot schon eine Eröffnungszeit in der globalen Variable hat
-            if botname not in eroeffnungszeiten_fuer_alle:
-                # Wenn nicht, zuerst globale Variable speichern 
-                url = f"{FIREBASE_URL}/eroeffnungszeit/{botname}.json?auth={firebase_secret}"
-                resp = requests.get(url)
-                
-                if resp.status_code == 200 and resp.json():  # Zeit in Firebase vorhanden
-                    eroeffnungszeit = resp.json()
-                    logs.append(f"Eröffnungszeit aus Firebase für {botname} geladen: {eroeffnungszeit}")
-                else:  # Keine Zeit in Firebase → neue erstellen und speichern
-                    eroeffnungszeit = datetime.now(timezone.utc).isoformat()
-                    logs.append(firebase_speichere_eroeffnungszeit(botname, eroeffnungszeit, firebase_secret))
-                    logs.append(f"Neue Eröffnungszeit für {botname} gespeichert: {eroeffnungszeit}")
-        
-                # Globale Variable aktualisieren
-                eroeffnungszeiten_fuer_alle[botname] = eroeffnungszeit
-            else:
-                eroeffnungszeit = eroeffnungszeiten_fuer_alle[botname]
-                logs.append(f"Eröffnungszeit aus globaler Variable ({botname}): {eroeffnungszeit}")
-
-        
-            
+    
         # 9. Alte Sell-Limit-Orders löschen
         try:
             if isinstance(open_orders, dict) and open_orders.get("code") == 0:
@@ -780,55 +712,24 @@ def webhook():
         limit_order_response = None
     
         position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
-        
-        eroeffnungszeit_dt = datetime.fromisoformat(eroeffnungszeit)
-        # Prüfen, ob älter als 48 Stunden
-        if datetime.now(timezone.utc) - eroeffnungszeit_dt > timedelta(hours=48):
-            logs.append(f"Eröffnungszeit für {botname} ist älter als 2 Tage: {eroeffnungszeit}")
-           
-            try:
-                for pos in positions_raw:
-                    if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                        # Durchschnittspreis von BingX
-                        avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                        if avg_price > 0:
-                            durchschnittspreis = round(avg_price, 6)
-                            
-                            # Limit-Preis 0,1 % über dem Durchschnittspreis
-                            limit_price = round(durchschnittspreis * 1.001, 6)
-                            
-                            # Sell-Order platzieren
-                            limit_order_response = place_limit_sell_order(
-                                api_key, secret_key, symbol, sell_quantity, limit_price, position_side
-                            )
-                            
-                            logs.append(f"Limit-Order gesetzt für Bot {botname} (0,1% über Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
-                            sende_telegram_nachricht(botname, f"ℹ️ Sell-Limit-Order 0,1% über Durchschnittspreis von BINGX für Bot: {botname}")
-                        break
-            except Exception as e:
-                logs.append(f"[Fehler] avgPrice-Fallback fehlgeschlagen: {e}")
-                sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order 0.1% für Bot: {botname}")
-        
-        else:
-            logs.append(f"Eröffnungszeit für {botname} ist noch aktuell: {eroeffnungszeit}")
-             
-            try:
-                if durchschnittspreis and sell_percentage:
-                    limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
-                else:
-                    limit_price = 0
-        
-                    sell_quantity = min(sell_quantity, position_size)
-        
-                if sell_quantity > 0 and limit_price > 0:
-                    limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
-                    logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
-                else:
-                    logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
-                    sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
-            except Exception as e:
-                logs.append(f"Fehler bei Limit-Order: {e}")
-                sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
+     
+        try:
+            if durchschnittspreis and sell_percentage:
+                limit_price = round(durchschnittspreis * (1 + float(sell_percentage) / 100), 6)
+            else:
+                limit_price = 0
+    
+            sell_quantity = min(sell_quantity, position_size)
+    
+            if sell_quantity > 0 and limit_price > 0:
+                limit_order_response = place_limit_sell_order(api_key, secret_key, symbol, sell_quantity, limit_price, position_side)
+                logs.append(f"Limit-Order gesetzt für Bot {botname} (Basis Durchschnittspreis {durchschnittspreis}): {limit_order_response}")
+            else:
+                logs.append("Ungültige Daten, keine Limit-Order gesetzt.")
+                sende_telegram_nachricht(botname, f"❌ Ungültige Daten, keine Limit-Order gesetzt für Bot: {botname}")
+        except Exception as e:
+            logs.append(f"Fehler bei Limit-Order: {e}")
+            sende_telegram_nachricht(botname, f"❌ Fehler bei Limit-Order für Bot: {botname}")
     
         # 11. Bestehende STOP_MARKET SL-Orders löschen
         try:
