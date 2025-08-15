@@ -557,29 +557,33 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
     
-        # 2. Offene Orders abrufen
-        open_orders = {}
-        try:
-            open_orders = get_open_orders(api_key, secret_key, symbol)
-            logs.append(f"Open Orders: {open_orders}")
-        except Exception as e:
-            logs.append(f"Fehler bei Orderprüfung: {e}")
-            sende_telegram_nachricht(botname, f"Fehler bei Orderprüfung {botname}: {e}")
     
         # 3. Ordergröße ermitteln (Compounding-Logik)
         usdt_amount = 0
 
+
+        # 3. Positionsstatus prüfen (NEU)
+        sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+        
+        position_open = False
+        for pos in positions_raw:
+            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                position_size = float(pos.get("positionAmt", 0) or pos.get("size", 0))
+                if position_size > 0:
+                    position_open = True
+                break
         
         
         open_sell_orders_exist = False
 
         
-        if action == "increase":  # Nachkauforder
+        # 4. Festlegen, ob es wirklich ein Nachkauf ist
+        if action == "increase" and position_open:
             open_sell_orders_exist = True
-        else:  # erste Order
+        else:
             open_sell_orders_exist = False
         
-        logs.append(f"action={action}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
+        logs.append(f"action={action}, botname={botname}, position_open={position_open}, open_sell_orders_exist={open_sell_orders_exist}")
         
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
