@@ -2,10 +2,10 @@
 #Market Order mit Hebel wird gesetzt
 #Hebel muss in BINGX selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
-#der gewichtete Durschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
+#der gewichtete Durchschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
 #Verfügbares Guthaben wird ermittelt
-#Ordergrösse = (Verfügbares Guthaben - Sicherheit)/Pyramiding
+#Ordergrösse für BO = (Verfügbares Guthaben - Sicherheit) * 0.000451979; SO wird dann automatisch mal Faktor gerechet
 #Ordergrösse wird in Variable gespeichert, Firebase wird nur als Backup verwendet
 #StopLoss 3% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
@@ -28,7 +28,7 @@
 #    "leverage": 1,
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
-#    "pyramiding": 8,
+#    "pyramiding": 8, grösser als 0, wird nicht berücksichtig für Berechnung, es wird für BO gerechnet: (verfügbares Guthaben  - Sicherheit) * 0.000451979 
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
 #    "usdt_factor": 1.4
 #}}
@@ -561,7 +561,7 @@ def webhook():
         
             if available_usdt is not None and pyramiding > 0:
                 # Erste Order bleibt unverändert
-                usdt_amount = max(((available_usdt - sicherheit) / pyramiding), 0)
+                usdt_amount = max(((available_usdt - sicherheit) * 0.000451979    #max(((available_usdt - sicherheit) / pyramiding), 0)
                 saved_usdt_amounts[botname] = usdt_amount
                 logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                 
