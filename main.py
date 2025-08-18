@@ -561,7 +561,7 @@ def webhook():
         
             if available_usdt is not None and pyramiding > 0:
                 # Erste Order bleibt unverändert
-                usdt_amount = max(((available_usdt - sicherheit) * 0.000451979    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                usdt_amount = max(((available_usdt - sicherheit) * 0.000451979)    #max(((available_usdt - sicherheit) / pyramiding), 0)
                 saved_usdt_amounts[botname] = usdt_amount
                 logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                 
