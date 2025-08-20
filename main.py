@@ -5,7 +5,7 @@
 #der gewichtete Durchschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
 #Verfügbares Guthaben wird ermittelt
-#Ordergrösse für BO = (Verfügbares Guthaben - Sicherheit) * 0.000451979; SO wird dann automatisch mal Faktor gerechet
+#Ordergrösse für BO = (Verfügbares Guthaben - Sicherheit) * bo_factor; SO wird dann automatisch mal Faktor gerechet
 #Ordergrösse wird in Variable gespeichert, Firebase wird nur als Backup verwendet
 #StopLoss 3% über Liquidationspreis
 #Falls Firebaseverbindung fehlschlägt, wird der Durchschnittspreis aus Bingx -0.3% für die Berechnung der Sell-Limit-Order verwendet.
@@ -28,9 +28,10 @@
 #    "leverage": 1,
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
-#    "pyramiding": 8, grösser als 0, wird nicht berücksichtig für Berechnung, es wird für BO gerechnet: (verfügbares Guthaben  - Sicherheit) * 0.000451979 
+#    "pyramiding": 8, grösser als 0, wird nicht berücksichtig für Berechnung, es wird für BO gerechnet: (verfügbares Guthaben  - Sicherheit) * bo_factor
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
-#    "usdt_factor": 1.4
+#    "usdt_factor": 1.4,
+#    "bo_factor": 0.001, wie viel Prozent beträgt die BO im Verhältnis zum verfügbaren Guthaben unter Berücksichtung der Gewichtung aller SO
 #}}
 #    Berechnung Ordergrösse
 #    verfügbares Guthaben x leverage
@@ -455,6 +456,7 @@ def webhook():
     firebase_secret = data.get("RENDER", {}).get("FIREBASE_SECRET")    #data.get("FIREBASE_SECRET")
     price_from_webhook = data.get("RENDER", {}).get("price")    #data.get("price")
     usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
+    bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
     action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower()
 
 
@@ -561,7 +563,7 @@ def webhook():
         
             if available_usdt is not None and pyramiding > 0:
                 # Erste Order bleibt unverändert
-                usdt_amount = max(((available_usdt - sicherheit) * 0.000451979), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
                 saved_usdt_amounts[botname] = usdt_amount
                 logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                 
