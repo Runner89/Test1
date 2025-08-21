@@ -33,10 +33,7 @@
 #    "usdt_factor": 1.4,
 #    "bo_factor": 0.001, wie viel Prozent beträgt die BO im Verhältnis zum verfügbaren Guthaben unter Berücksichtung der Gewichtung aller SO
 #}}
-#    Berechnung Ordergrösse
-#    verfügbares Guthaben x leverage
-#    - (Sicherheit x leverage)
-#    Eregbnis / pyramiding
+
 
 
 from flask import Flask, request, jsonify
@@ -518,8 +515,8 @@ def webhook():
     
         # 1. Hebel setzen
         try:
-            logs.append(f"Setze Hebel auf {pyramiding} für {symbol} ({position_side})...")
-            leverage_response = set_leverage(api_key, secret_key, symbol, pyramiding, position_side)
+            logs.append(f"Setze Hebel auf {leverage} für {symbol} ({position_side})...")
+            leverage_response = set_leverage(api_key, secret_key, symbol, leverage, position_side)
             logs.append(f"Hebel gesetzt: {leverage_response}")
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
