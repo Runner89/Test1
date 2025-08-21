@@ -515,8 +515,8 @@ def webhook():
     
         # 1. Hebel setzen
         try:
-            logs.append(f"Setze Hebel auf {leverage} für {symbol} ({position_side})...")
-            leverage_response = set_leverage(api_key, secret_key, symbol, leverage, position_side)
+            logs.append(f"Setze Hebel auf {leverageB} für {symbol} ({position_side})...")
+            leverage_response = set_leverage(api_key, secret_key, symbol, leverageB, position_side)
             logs.append(f"Hebel gesetzt: {leverage_response}")
         except Exception as e:
             logs.append(f"Fehler beim Setzen des Hebels: {e}")
