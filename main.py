@@ -596,6 +596,8 @@ def webhook():
                 alarm_counter.pop(botname, None)
                 base_order_times.pop(botname, None)
 
+                
+
                 status_fuer_alle[botname] = "OK"
                 alarm_counter[botname] = -1
                 
@@ -782,7 +784,9 @@ def webhook():
             base_order_times[botname] = now
             base_time = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
+            print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
             print(logs[-1])
+
             
             # 2. Zeitpunkt in Firebase speichern
             try:
