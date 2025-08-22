@@ -75,11 +75,8 @@ def get_futures_balance(api_key: str, secret_key: str):
     return response.json()
 
 def firebase_speichere_base_order_time(botname, timestamp, firebase_secret):
-    # URL für Base-Order-Zeit in Firebase
     url = f"{FIREBASE_URL}/base_order_time/{botname}.json?auth={firebase_secret}"
-    # Daten als ISO-String
-    data = {"base_order_time": timestamp.isoformat()}
-    # Speichern per PUT
+    data = timestamp.isoformat()  # nur der String
     response = requests.put(url, json=data)
     return f"Base-Order-Zeit für {botname} gespeichert: {timestamp}, Status: {response.status_code}"
 
