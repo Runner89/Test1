@@ -13,6 +13,7 @@
 #Wenn action=close ist, wird Position geschlossen
 #Wenn action nicht gefunden wird, ist es die Baseorder
 #vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
+#Wenn Position auf BINGX schon gelöscht wurde und bei Traidingview noch nicht, wird der nächste increase-Befehl als Base Order ausgeführt
 
 #https://......../webhook
 # action wird vom vyn genommen
