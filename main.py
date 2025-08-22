@@ -787,8 +787,8 @@ def webhook():
             
             # 2. Zeitpunkt in Firebase speichern
             try:
-                firebase_loesche_base_order_time
-                firebase_speichere_base_order_time(botname, now, firebase_secret)  # du musst diese Funktion anlegen
+                firebase_loesche_base_order_time(botname, firebase_secret)
+                firebase_speichere_base_order_time(botname, now, firebase_secret)  
                 logs.append(f"Base-Order Zeitpunkt in Firebase gespeichert: {now}")
                 print(logs[-1])
             except Exception as e:
