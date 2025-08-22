@@ -815,11 +815,12 @@ def webhook():
                             if avg_price > 0:
                                 durchschnittspreis = round(avg_price * (1), 6)
                                 logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
+                                sende_telegram_nachricht(botname, f"ℹ️ Sell-Limit-Order auf 0.5% gesetzt für Bot: {botname}")
                             break
                 except Exception as e:
                     logs.append(f"[Fehler] fehlgeschlagen: {e}")
                 
-                logs.append(f"Mehr als 48 Stunden seit Base-Order vergangen. sell_percentage auf 0.5 gesetzt.")
+                logs.append(f"Mehr als 48 Stunden/Anzahl Nachkäufe seit Base-Order vergangen. sell_percentage auf 0.5 gesetzt.")
                 print(logs[-1])
                 
         # 10. Neue Limit-Order setzen
