@@ -798,7 +798,7 @@ def webhook():
         else:
 
             # 1. Zeitpunkt aus globaler Variable prüfen #Bei Test wird aus JSON-Webhook genommen
-            if base_time2 is None:   # prüfen, ob base_time2 leer ist
+            if base_time2 is None or base_time2 == "":  # prüfen, ob None oder leerer String
                 base_time = base_order_times.get(botname)
             else:
                 base_time = base_time2
