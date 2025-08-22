@@ -545,25 +545,25 @@ def webhook():
                 sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX für Bot {botname}")
                 raise Exception("Keine Verbindung zu BingX – Bot gestoppt")
 
-                logs.append(f"position_size={position_size}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
-                if position_size > 0:
-                    open_sell_orders_exist = True
-                else: # erste Order, wird ausgeführt wenn auf Bingx die Position bereits geschlossen wurde, aber in Traidingview noch nicht -> increase-Befehl startet neue Position
-                    open_sell_orders_exist = False
-                    saved_usdt_amounts.pop(botname, None)
-                    status_fuer_alle.pop(botname, None)
-                    alarm_counter.pop(botname, None)
-    
-                    status_fuer_alle[botname] = "OK"
-                    alarm_counter[botname] = -1
-                    
-                    try:
-                        logs = []
-                        logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
-                        logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-                        print("\n".join(logs))
-                    except Exception as e:
-                        print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
+            logs.append(f"position_size={position_size}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
+            if position_size > 0:
+                open_sell_orders_exist = True
+            else: # erste Order, wird ausgeführt wenn auf Bingx die Position bereits geschlossen wurde, aber in Traidingview noch nicht -> increase-Befehl startet neue Position
+                open_sell_orders_exist = False
+                saved_usdt_amounts.pop(botname, None)
+                status_fuer_alle.pop(botname, None)
+                alarm_counter.pop(botname, None)
+
+                status_fuer_alle[botname] = "OK"
+                alarm_counter[botname] = -1
+                
+                try:
+                    logs = []
+                    logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
+                    logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                    print("\n".join(logs))
+                except Exception as e:
+                    print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
     
         else:  # erste Order
             open_sell_orders_exist = False
