@@ -781,7 +781,7 @@ def webhook():
             base_order_times[botname] = now
             base_time = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
-            print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
+            #print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
             print(logs[-1])
 
             
@@ -828,12 +828,9 @@ def webhook():
                 anzahl_nachkäufe = alarm_counter[botname] 
             else:
                 anzahl_käufe = len(kaufpreise or [])
-                anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-
-            logs.append(f"Alarm2 {anzahl_nachkäufe}")
-            logs.append(f"Alarm3 {base_time}")
-            
-            
+                anzahl_nachkäufe = max(anzahl_käufe - 1, 0)     
+                
+            logs.append(f"Alarm2 {anzahl_nachkäufe - 4}")
             
             # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
             if base_time is not None:
