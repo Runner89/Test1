@@ -830,8 +830,8 @@ def webhook():
                 anzahl_käufe = len(kaufpreise or [])
                 anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
 
-            logs.append(f"Alarm2 {anzahl_nachkäufe})
-            logs.append(f"Alarm3 {base_time})
+            logs.append(f"Alarm2 {anzahl_nachkäufe}")
+            logs.append(f"Alarm3 {base_time}")
             
             
             
