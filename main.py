@@ -539,7 +539,31 @@ def webhook():
 
         
         if action == "increase":  # Nachkauforder
-            open_sell_orders_exist = True
+            position_size, _, _ = get_current_position(api_key, secret_key, symbol, position_side, logs)
+            if position_size is None:
+                logs.append("❌ Keine Verbindung zur BingX API – Order wird NICHT gesetzt")
+                sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX für Bot {botname}")
+                raise Exception("Keine Verbindung zu BingX – Bot gestoppt")
+            
+                if position_size > 0
+                    open_sell_orders_exist = True
+                else: # erste Order, wird ausgeführt wenn auf Bingx die Position bereits geschlossen wurde, aber in Traidingview noch nicht -> increase-Befehl startet neue Position
+                    open_sell_orders_exist = False
+                    saved_usdt_amounts.pop(botname, None)
+                    status_fuer_alle.pop(botname, None)
+                    alarm_counter.pop(botname, None)
+    
+                    status_fuer_alle[botname] = "OK"
+                    alarm_counter[botname] = -1
+                    
+                    try:
+                        logs = []
+                        logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
+                        logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                        print("\n".join(logs))
+                    except Exception as e:
+                        print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
+    
         else:  # erste Order
             open_sell_orders_exist = False
         
