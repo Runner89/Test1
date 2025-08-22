@@ -44,7 +44,6 @@ import hmac
 import hashlib
 import requests
 import os
-import datetime
 
 app = Flask(__name__)
 
