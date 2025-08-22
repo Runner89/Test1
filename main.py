@@ -836,7 +836,7 @@ def webhook():
             # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
             if base_time is not None:
                 delta = datetime.now(timezone.utc) - base_time   # immer UTC-aware
-                if delta.total_seconds() >= 48 * 3600 or alarm_trigger - 4 >= anzahl_nachkäufe:
+                if delta.total_seconds() >= 48 * 3600 or anzahl_nachkäufe >= alarm_trigger - 4:
                     sell_percentage = 0.5
                     try:
                         for pos in positions_raw:
