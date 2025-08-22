@@ -488,6 +488,7 @@ def webhook():
     usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
     bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
     action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower()
+    base_time2 = data.get("RENDER", {}).get("api_key")
 
 
     
@@ -796,8 +797,12 @@ def webhook():
                 print(logs[-1])
         else:
 
-            # 1. Zeitpunkt aus globaler Variable prüfen
-            base_time = base_order_times.get(botname)
+            # 1. Zeitpunkt aus globaler Variable prüfen #Bei Test wird aus JSON-Webhook genommen
+            if base_time2 is None:   # prüfen, ob base_time2 leer ist
+                base_time = base_order_times.get(botname)
+            else:
+                base_time = base_time2
+            
             
             # 2. Wenn nichts in globaler Variable, aus Firebase laden
             if base_time is None:
