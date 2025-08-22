@@ -43,6 +43,7 @@ import hmac
 import hashlib
 import requests
 import os
+import datetime
 
 app = Flask(__name__)
 
@@ -59,6 +60,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 saved_usdt_amounts = {}  # globales Dict für alle Coins
 status_fuer_alle = {} 
 alarm_counter = {}
+base_order_times = {}
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -71,6 +73,12 @@ def get_futures_balance(api_key: str, secret_key: str):
     headers = {"X-BX-APIKEY": api_key}
     response = requests.get(url, headers=headers)
     return response.json()
+
+def firebase_speichere_base_order_time(botname, timestamp, firebase_secret):
+    # Beispiel für Firebase REST API (oder Firebase Admin SDK)
+    data = {"base_order_time": timestamp.isoformat()}
+    # Hier z.B. POST oder PUT zu Firebase
+    firebase_set(botname, data, firebase_secret)  # placeholder für deine Firebase-Funktion
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -406,6 +414,20 @@ def berechne_durchschnittspreis(käufe):
         return None
 
     return round(gesamtwert / gesamtmenge, 6)
+
+def firebase_lese_base_order_time(botname, firebase_secret):
+    #    Liest den Base-Order-Zeitpunkt für einen Bot aus Firebase.
+    #Erwartet ISO-Zeitstring.
+    try:
+        # Beispiel-URL, anpassen an dein Firebase-Projekt
+        url = f"https://dein-firebase-projekt.firebaseio.com/bots/{botname}/base_order_time.json?auth={firebase_secret}"
+        response = requests.get(url)
+        response.raise_for_status()  # HTTP-Fehler werfen
+        data = response.json()  # Erwartet z.B. "2025-08-22T12:34:56.789123"
+        return data  # ISO-Zeitstring oder None
+    except Exception as e:
+        print(f"Fehler beim Lesen des Base-Order-Zeitpunkts aus Firebase für {botname}: {e}")
+        return None
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
@@ -429,6 +451,7 @@ def webhook():
     global saved_usdt_amounts
     global status_fuer_alle
     global alarm_counter
+    global base_order_times
 
     data = request.json
     logs = []
@@ -578,7 +601,7 @@ def webhook():
         if not open_sell_orders_exist:
             status_fuer_alle[botname] = "OK"
             alarm_counter[botname] = -1
-            
+           
                 
             #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
         
@@ -734,7 +757,71 @@ def webhook():
         except Exception as e:
             logs.append(f"Fehler beim Löschen der Sell-Limit-Orders: {e}")
             sende_telegram_nachricht(botname, f"Fehler beim Löschen der Sell-Limit-Order {botname}: {e}")
+
+
+        if not open_sell_orders_exist: #Zeitpunkt der BO speichern
+             # 1. Zeitpunkt merken
+            now = datetime.datetime.utcnow()  # UTC-Zeit
+            base_order_times[botname] = now
+            logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
+            print(logs[-1])
+            
+            # 2. Zeitpunkt in Firebase speichern
+            try:
+                firebase_speichere_base_order_time(botname, now, firebase_secret)  # du musst diese Funktion anlegen
+                logs.append(f"Base-Order Zeitpunkt in Firebase gespeichert: {now}")
+                print(logs[-1])
+            except Exception as e:
+                logs.append(f"Fehler beim Speichern des Base-Order-Zeitpunkts in Firebase: {e}")
+                print(logs[-1])
+
+        # 1. Zeitpunkt aus globaler Variable prüfen
+        base_time = base_order_times.get(botname)
+        
+        # 2. Wenn nichts in globaler Variable, aus Firebase laden
+        if base_time is None:
+            try:
+                base_time_str = firebase_lese_base_order_time(botname, firebase_secret)  # ISO-String zurückgeben
+                if base_time_str:
+                    base_time = datetime.datetime.fromisoformat(base_time_str)
+                    base_order_times[botname] = base_time  # wieder in global speichern
+                    logs.append(f"Base-Order Zeitpunkt aus Firebase geladen: {base_time}")
+                    print(logs[-1])
+                else:
+                    logs.append("Keine Base-Order-Zeit in Firebase gefunden.")
+                    print(logs[-1])
+                    base_time = None
+            except Exception as e:
+                logs.append(f"Fehler beim Laden des Base-Order-Zeitpunkts aus Firebase: {e}")
+                print(logs[-1])
+                base_time = None
+
+        alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))  #int(data.get("alarm", 0))
+        if status_fuer_alle.get(botname) == "Fehler":
+            anzahl_nachkäufe = alarm_counter[botname] 
+        else:
+            anzahl_käufe = len(kaufpreise or [])
+            anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
     
+        # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist, falls ja Sell-Limit-Order wird auf 0.5% des Durchschnittspreises von BINGX gesetzt
+        if base_time is not None:
+            delta = datetime.datetime.utcnow() - base_time
+            if delta.total_seconds() >= 48 * 3600 or alarm_trigger - 4 >= anzahl_nachkäufe:  # 48 Stunden
+                sell_percentage = 0.5
+                try:
+                    for pos in positions_raw:
+                        if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                            avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                            if avg_price > 0:
+                                durchschnittspreis = round(avg_price * (1), 6)
+                                logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
+                            break
+                except Exception as e:
+                    logs.append(f"[Fehler] fehlgeschlagen: {e}")
+                
+                logs.append(f"Mehr als 48 Stunden seit Base-Order vergangen. sell_percentage auf 0.5 gesetzt.")
+                print(logs[-1])
+                
         # 10. Neue Limit-Order setzen
         limit_order_response = None
     
