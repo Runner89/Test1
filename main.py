@@ -829,6 +829,11 @@ def webhook():
             else:
                 anzahl_käufe = len(kaufpreise or [])
                 anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
+
+            logs.append(f"Alarm2 {anzahl_nachkäufe})
+            logs.append(f"Alarm3 {base_time})
+            
+            
             
             # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
             if base_time is not None:
