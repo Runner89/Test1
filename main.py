@@ -488,7 +488,7 @@ def webhook():
     usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
     bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
     action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower()
-    base_time2 = data.get("RENDER", {}).get("api_key")
+    base_time2 = data.get("RENDER", {}).get("base_time2")
 
 
     
