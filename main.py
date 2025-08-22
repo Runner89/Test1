@@ -798,10 +798,20 @@ def webhook():
         else:
 
             # 1. Zeitpunkt aus globaler Variable prüfen #Bei Test wird aus JSON-Webhook genommen
-            if base_time2 is None or base_time2 == "":  # prüfen, ob None oder leerer String
+            if not base_time2:  # leer oder None
                 base_time = base_order_times.get(botname)
             else:
-                base_time = base_time2
+                try:
+                    # falls base_time2 ein ISO-String ist, in datetime konvertieren
+                    base_time = datetime.fromisoformat(base_time2)
+            
+                    # falls ohne Zeitzone -> auf UTC setzen
+                    if base_time.tzinfo is None:
+                        base_time = base_time.replace(tzinfo=timezone.utc)
+            
+                except Exception as e:
+                    logs.append(f"Fehler beim Umwandeln von base_time2: {e}")
+                    base_time = None
             
             
             # 2. Wenn nichts in globaler Variable, aus Firebase laden
