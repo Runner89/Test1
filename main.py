@@ -777,7 +777,7 @@ def webhook():
                 logs.append(f"Fehler beim Speichern des Base-Order-Zeitpunkts in Firebase: {e}")
                 print(logs[-1])
 
-        # 1. Zeitpunkt aus globaler Variable prüfen
+            # 1. Zeitpunkt aus globaler Variable prüfen
             base_time = base_order_times.get(botname)
             
             # 2. Wenn nichts in globaler Variable, aus Firebase laden
@@ -802,7 +802,7 @@ def webhook():
                     logs.append(f"Fehler beim Laden des Base-Order-Zeitpunkts aus Firebase: {e}")
                     print(logs[-1])
                     base_time = None
-            
+        else:
             # Alarm-Infos
             alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))
             if status_fuer_alle.get(botname) == "Fehler":
