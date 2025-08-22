@@ -38,6 +38,7 @@
 
 
 from flask import Flask, request, jsonify
+from datetime import datetime, timezone
 import time
 import hmac
 import hashlib
@@ -761,7 +762,8 @@ def webhook():
 
         if not open_sell_orders_exist: #Zeitpunkt der BO speichern
              # 1. Zeitpunkt merken
-            now = datetime.datetime.utcnow()  # UTC-Zeit
+            now = datetime.now(timezone.utc)
+            
             base_order_times[botname] = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
             print(logs[-1])
@@ -776,52 +778,57 @@ def webhook():
                 print(logs[-1])
 
         # 1. Zeitpunkt aus globaler Variable prüfen
-        base_time = base_order_times.get(botname)
-        
-        # 2. Wenn nichts in globaler Variable, aus Firebase laden
-        if base_time is None:
-            try:
-                base_time_str = firebase_lese_base_order_time(botname, firebase_secret)  # ISO-String zurückgeben
-                if base_time_str:
-                    base_time = datetime.datetime.fromisoformat(base_time_str)
-                    base_order_times[botname] = base_time  # wieder in global speichern
-                    logs.append(f"Base-Order Zeitpunkt aus Firebase geladen: {base_time}")
-                    print(logs[-1])
-                else:
-                    logs.append("Keine Base-Order-Zeit in Firebase gefunden.")
+            base_time = base_order_times.get(botname)
+            
+            # 2. Wenn nichts in globaler Variable, aus Firebase laden
+            if base_time is None:
+                try:
+                    base_time_str = firebase_lese_base_order_time(botname, firebase_secret)  # ISO-String zurückgeben
+                    if base_time_str:
+                        base_time = datetime.fromisoformat(base_time_str)
+            
+                        # falls ohne Zeitzone gespeichert -> auf UTC setzen
+                        if base_time.tzinfo is None:
+                            base_time = base_time.replace(tzinfo=timezone.utc)
+            
+                        base_order_times[botname] = base_time  # wieder in global speichern
+                        logs.append(f"Base-Order Zeitpunkt aus Firebase geladen: {base_time}")
+                        print(logs[-1])
+                    else:
+                        logs.append("Keine Base-Order-Zeit in Firebase gefunden.")
+                        print(logs[-1])
+                        base_time = None
+                except Exception as e:
+                    logs.append(f"Fehler beim Laden des Base-Order-Zeitpunkts aus Firebase: {e}")
                     print(logs[-1])
                     base_time = None
-            except Exception as e:
-                logs.append(f"Fehler beim Laden des Base-Order-Zeitpunkts aus Firebase: {e}")
-                print(logs[-1])
-                base_time = None
-
-        alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))  #int(data.get("alarm", 0))
-        if status_fuer_alle.get(botname) == "Fehler":
-            anzahl_nachkäufe = alarm_counter[botname] 
-        else:
-            anzahl_käufe = len(kaufpreise or [])
-            anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-    
-        # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist, falls ja Sell-Limit-Order wird auf 0.5% des Durchschnittspreises von BINGX gesetzt
-        if base_time is not None:
-            delta = datetime.datetime.utcnow() - base_time
-            if delta.total_seconds() >= 48 * 3600 or alarm_trigger - 4 >= anzahl_nachkäufe:  # 48 Stunden
-                sell_percentage = 0.5
-                try:
-                    for pos in positions_raw:
-                        if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
-                            avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
-                            if avg_price > 0:
-                                durchschnittspreis = round(avg_price * (1), 6)
-                                logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
-                                sende_telegram_nachricht(botname, f"ℹ️ Sell-Limit-Order auf 0.5% gesetzt für Bot: {botname}")
-                            break
-                except Exception as e:
-                    logs.append(f"[Fehler] fehlgeschlagen: {e}")
-                
-                logs.append(f"Mehr als 48 Stunden/Anzahl Nachkäufe seit Base-Order vergangen. sell_percentage auf 0.5 gesetzt.")
-                print(logs[-1])
+            
+            # Alarm-Infos
+            alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))
+            if status_fuer_alle.get(botname) == "Fehler":
+                anzahl_nachkäufe = alarm_counter[botname] 
+            else:
+                anzahl_käufe = len(kaufpreise or [])
+                anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
+            
+            # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
+            if base_time is not None:
+                delta = datetime.now(timezone.utc) - base_time   # immer UTC-aware
+                if delta.total_seconds() >= 48 * 3600 or alarm_trigger - 4 >= anzahl_nachkäufe:
+                    sell_percentage = 0.5
+                    try:
+                        for pos in positions_raw:
+                            if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                                avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                                if avg_price > 0:
+                                    durchschnittspreis = round(avg_price, 6)
+                                    logs.append(f"[Fallback] avgPrice von BingX verwendet: {durchschnittspreis}")
+                                break
+                    except Exception as e:
+                        logs.append(f"[Fehler] fehlgeschlagen: {e}")
+                    
+                    logs.append(f"Mehr als 48h oder Nachkaufgrenze erreicht → sell_percentage auf 0.5 gesetzt.")
+                    print(logs[-1])
                 
         # 10. Neue Limit-Order setzen
         limit_order_response = None
