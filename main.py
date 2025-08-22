@@ -281,6 +281,16 @@ def place_limit_sell_order(api_key, secret_key, symbol, quantity, limit_price, p
 
     response = requests.post(url, headers=headers, json=params_dict)
     return response.json()
+
+def firebase_loesche_base_order_time(botname, firebase_secret):
+    #    Löscht den Base-Order-Zeitpunkt eines Bots in Firebase.
+    try:
+        url = f"{FIREBASE_URL}/base_order_time/{botname}.json?auth={firebase_secret}"
+        response = requests.delete(url)
+        response.raise_for_status()
+        return f"Base-Order-Zeitpunkt für {botname} gelöscht, Status: {response.status_code}"
+    except Exception as e:
+        return f"Fehler beim Löschen des Base-Order-Zeitpunkts für {botname}: {e}"
     
 
 def sende_telegram_nachricht(botname, text):
@@ -508,6 +518,8 @@ def webhook():
                 logs = []
                 logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
                 logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                logs.append(firebase_loesche_base_order_time(botname, firebase_secret))
+                
                 print("\n".join(logs))
             except Exception as e:
                 print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
@@ -582,6 +594,7 @@ def webhook():
                 saved_usdt_amounts.pop(botname, None)
                 status_fuer_alle.pop(botname, None)
                 alarm_counter.pop(botname, None)
+                base_order_times.pop(botname, None)
 
                 status_fuer_alle[botname] = "OK"
                 alarm_counter[botname] = -1
@@ -590,6 +603,7 @@ def webhook():
                     
                     logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
                     logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                    logs.append(firebase_loesche_base_order_time(botname, firebase_secret))
                     print("\n".join(logs))
                 except Exception as e:
                     print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
