@@ -14,6 +14,7 @@
 #Wenn action nicht gefunden wird, ist es die Baseorder
 #vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
 #Wenn Position auf BINGX schon gelöscht wurde und bei Traidingview noch nicht, wird der nächste increase-Befehl als Base Order ausgeführt
+#Nach x Stunden seit BO oder nach x SO wird die Sell-Limit-Order auf x % gesetzt
 
 #https://......../webhook
 # action wird vom vyn genommen
@@ -33,6 +34,14 @@
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
 #    "usdt_factor": 1.4,
 #    "bo_factor": 0.001, wie viel Prozent beträgt die BO im Verhältnis zum verfügbaren Guthaben unter Berücksichtung der Gewichtung aller SO
+#    "base_time2": "", darf nur beim Testen Inhalt enthalten, 2025-08-22T11:22:37.986015+00:00, simulierter Zeitpunkt der BO
+#    "after_h": 48, nach x Stunden seit BO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt oder
+#    "after_so": 14, nach x SO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt
+#    "sell_percentage2": 0.5
+#    }}
+
+
+
 #}}
 
 
@@ -489,7 +498,9 @@ def webhook():
     bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
     action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower()
     base_time2 = data.get("RENDER", {}).get("base_time2")
-
+    after_h = data.get("RENDER", {}).get("after_h")
+    after_so = data.get("RENDER", {}).get("after_so")
+    sell_percentage2 = data.get("RENDER", {}).get("sell_percentage2")
 
     
 
@@ -851,8 +862,8 @@ def webhook():
             # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
             if base_time is not None:
                 delta = datetime.now(timezone.utc) - base_time   # immer UTC-aware
-                if delta.total_seconds() >= 48 * 3600 or anzahl_nachkäufe >= alarm_trigger - 4:
-                    sell_percentage = 0.5
+                if delta.total_seconds() >= after_h * 3600 or anzahl_nachkäufe >= after_so:
+                    sell_percentage = sell_percentage2
                     try:
                         for pos in positions_raw:
                             if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
@@ -864,7 +875,7 @@ def webhook():
                     except Exception as e:
                         logs.append(f"[Fehler] fehlgeschlagen: {e}")
                     
-                    logs.append(f"Mehr als 48h oder Nachkaufgrenze erreicht → sell_percentage auf 0.5 gesetzt.")
+                    logs.append(f"Zeit überschritten oder Nachkaufgrenze erreicht → sell_percentage verringert.")
                     print(logs[-1])
                 
         # 10. Neue Limit-Order setzen
