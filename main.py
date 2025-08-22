@@ -775,37 +775,42 @@ def webhook():
             sende_telegram_nachricht(botname, f"Fehler beim Löschen der Sell-Limit-Order {botname}: {e}")
 
 
-        if not open_sell_orders_exist:  # Base-Order
-            # 1. Zeitpunkt merken
+        if not open_sell_orders_exist: #Zeitpunkt der BO speichern
+             # 1. Zeitpunkt merken
             now = datetime.now(timezone.utc)
             base_order_times[botname] = now
             base_time = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
+            print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
             print(logs[-1])
-        
+
+            
             # 2. Zeitpunkt in Firebase speichern
             try:
-                firebase_loesche_base_order_time(botname, firebase_secret)
-                firebase_speichere_base_order_time(botname, now, firebase_secret)
+                firebase_loesche_base_order_time
+                firebase_speichere_base_order_time(botname, now, firebase_secret)  # du musst diese Funktion anlegen
                 logs.append(f"Base-Order Zeitpunkt in Firebase gespeichert: {now}")
                 print(logs[-1])
             except Exception as e:
                 logs.append(f"Fehler beim Speichern des Base-Order-Zeitpunkts in Firebase: {e}")
                 print(logs[-1])
-        
-        else:  # Nachkäufe
+        else:
+
             # 1. Zeitpunkt aus globaler Variable prüfen
             base_time = base_order_times.get(botname)
             
             # 2. Wenn nichts in globaler Variable, aus Firebase laden
             if base_time is None:
                 try:
-                    base_time_str = firebase_lese_base_order_time(botname, firebase_secret)  # ISO-String
+                    base_time_str = firebase_lese_base_order_time(botname, firebase_secret)  # ISO-String zurückgeben
                     if base_time_str:
                         base_time = datetime.fromisoformat(base_time_str)
+            
+                        # falls ohne Zeitzone gespeichert -> auf UTC setzen
                         if base_time.tzinfo is None:
                             base_time = base_time.replace(tzinfo=timezone.utc)
-                        base_order_times[botname] = base_time
+            
+                        base_order_times[botname] = base_time  # wieder in global speichern
                         logs.append(f"Base-Order Zeitpunkt aus Firebase geladen: {base_time}")
                         print(logs[-1])
                     else:
@@ -816,21 +821,18 @@ def webhook():
                     logs.append(f"Fehler beim Laden des Base-Order-Zeitpunkts aus Firebase: {e}")
                     print(logs[-1])
                     base_time = None
-        
+    
             # Alarm-Infos
             alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))
             if status_fuer_alle.get(botname) == "Fehler":
-                anzahl_nachkäufe = alarm_counter.get(botname, 0)  # Default auf 0, falls Bot noch nicht drin
+                anzahl_nachkäufe = alarm_counter[botname] 
             else:
                 anzahl_käufe = len(kaufpreise or [])
                 anzahl_nachkäufe = max(anzahl_käufe - 1, 0)
-        
+            
             # 3. Prüfen, ob 48 Stunden seit Base-Order vergangen sind oder Nachkauforder erreicht ist
             if base_time is not None:
-                delta = datetime.now(timezone.utc) - base_time
-                print(f"Delta total_seconds={delta.total_seconds()}, hours={delta.total_seconds()/3600}")
-        
-                # nur für Nachkäufe prüfen
+                delta = datetime.now(timezone.utc) - base_time   # immer UTC-aware
                 if delta.total_seconds() >= 48 * 3600 or alarm_trigger - 4 >= anzahl_nachkäufe:
                     sell_percentage = 0.5
                     try:
