@@ -781,7 +781,7 @@ def webhook():
             base_order_times[botname] = now
             base_time = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
-            print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
+            #print(firebase_speichere_base_order_time("TEST_BOT", now, firebase_secret))
             print(logs[-1])
 
             
