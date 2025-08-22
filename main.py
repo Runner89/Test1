@@ -500,6 +500,7 @@ def webhook():
         saved_usdt_amounts.pop(botname, None)
         status_fuer_alle.pop(botname, None)
         alarm_counter.pop(botname, None)
+        base_order_times.pop(botname, None)
         
         # Kaufpreise löschen (Firebase oder lokal)
         if firebase_secret:
@@ -764,8 +765,8 @@ def webhook():
         if not open_sell_orders_exist: #Zeitpunkt der BO speichern
              # 1. Zeitpunkt merken
             now = datetime.now(timezone.utc)
-            
             base_order_times[botname] = now
+            base_time = now
             logs.append(f"Base-Order Zeitpunkt gespeichert (global): {now}")
             print(logs[-1])
             
