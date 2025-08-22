@@ -75,10 +75,13 @@ def get_futures_balance(api_key: str, secret_key: str):
     return response.json()
 
 def firebase_speichere_base_order_time(botname, timestamp, firebase_secret):
-    # Beispiel für Firebase REST API (oder Firebase Admin SDK)
+    # URL für Base-Order-Zeit in Firebase
+    url = f"{FIREBASE_URL}/base_order_time/{botname}.json?auth={firebase_secret}"
+    # Daten als ISO-String
     data = {"base_order_time": timestamp.isoformat()}
-    # Hier z.B. POST oder PUT zu Firebase
-    firebase_set(botname, data, firebase_secret)  # placeholder für deine Firebase-Funktion
+    # Speichern per PUT
+    response = requests.put(url, json=data)
+    return f"Base-Order-Zeit für {botname} gespeichert: {timestamp}, Status: {response.status_code}"
 
 def get_current_price(symbol: str):
     url = f"{BASE_URL}{PRICE_ENDPOINT}?symbol={symbol}"
@@ -416,15 +419,14 @@ def berechne_durchschnittspreis(käufe):
     return round(gesamtwert / gesamtmenge, 6)
 
 def firebase_lese_base_order_time(botname, firebase_secret):
-    #    Liest den Base-Order-Zeitpunkt für einen Bot aus Firebase.
-    #Erwartet ISO-Zeitstring.
     try:
-        # Beispiel-URL, anpassen an dein Firebase-Projekt
-        url = f"https://dein-firebase-projekt.firebaseio.com/bots/{botname}/base_order_time.json?auth={firebase_secret}"
+        url = f"{FIREBASE_URL}/base_order_time/{botname}.json?auth={firebase_secret}"
         response = requests.get(url)
-        response.raise_for_status()  # HTTP-Fehler werfen
-        data = response.json()  # Erwartet z.B. "2025-08-22T12:34:56.789123"
-        return data  # ISO-Zeitstring oder None
+        response.raise_for_status()
+        data = response.json()
+        if data:
+            return data.get("base_order_time")  # ISO-Zeitstring
+        return None
     except Exception as e:
         print(f"Fehler beim Lesen des Base-Order-Zeitpunkts aus Firebase für {botname}: {e}")
         return None
