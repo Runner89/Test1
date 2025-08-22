@@ -560,7 +560,7 @@ def webhook():
                 alarm_counter[botname] = -1
                 
                 try:
-                    logs = []
+                    
                     logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
                     logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
                     print("\n".join(logs))
