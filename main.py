@@ -545,7 +545,7 @@ def webhook():
                 sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX für Bot {botname}")
                 raise Exception("Keine Verbindung zu BingX – Bot gestoppt")
             
-                if position_size > 0
+                if position_size > 0:
                     open_sell_orders_exist = True
                 else: # erste Order, wird ausgeführt wenn auf Bingx die Position bereits geschlossen wurde, aber in Traidingview noch nicht -> increase-Befehl startet neue Position
                     open_sell_orders_exist = False
