@@ -825,7 +825,7 @@ def webhook():
             # Alarm-Infos
             alarm_trigger = int(data.get("RENDER", {}).get("alarm", 0))
             if status_fuer_alle.get(botname) == "Fehler":
-                anzahl_nachkäufe = alarm_counter[botname] 
+                anzahl_nachkäufe = alarm_counter.get(botname, -1)
             else:
                 anzahl_käufe = len(kaufpreise or [])
                 anzahl_nachkäufe = max(anzahl_käufe - 1, 0)     
