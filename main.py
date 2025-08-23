@@ -649,7 +649,7 @@ def webhook():
                     "reason": "beenden=nein",
                     "logs": logs
                 })
-            else
+            else:
         
                 status_fuer_alle[botname] = "OK"
                 alarm_counter[botname] = -1
