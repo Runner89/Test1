@@ -38,6 +38,7 @@
 #    "after_h": 48, nach x Stunden seit BO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt oder
 #    "after_so": 14, nach x SO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt
 #    "sell_percentage2": 0.5
+#    "beenden": "nein" wenn ja, wird keine neue Position nach dem Schliessen der aktuellen Position geöffnet
 #    }}
 
 
@@ -501,6 +502,8 @@ def webhook():
     after_h = data.get("RENDER", {}).get("after_h")
     after_so = data.get("RENDER", {}).get("after_so")
     sell_percentage2 = data.get("RENDER", {}).get("sell_percentage2")
+    beenden = data.get("RENDER", {}).get("beenden", "nein")
+
 
     
 
@@ -599,25 +602,35 @@ def webhook():
             if position_size > 0:
                 open_sell_orders_exist = True
             else: # erste Order, wird ausgeführt wenn auf Bingx die Position bereits geschlossen wurde, aber in Traidingview noch nicht -> increase-Befehl startet neue Position
-                open_sell_orders_exist = False
-                saved_usdt_amounts.pop(botname, None)
-                status_fuer_alle.pop(botname, None)
-                alarm_counter.pop(botname, None)
-                base_order_times.pop(botname, None)
-
-                
-
-                status_fuer_alle[botname] = "OK"
-                alarm_counter[botname] = -1
-                
-                try:
+                if beenden.lower() == "ja":
+                    logs.append(f"⚠️ Bot {botname}: Beenden=ja → KEINE neue Base Order wird eröffnet")
+                    # Nur Status zurückgeben, keine Base Order setzen
+                    return jsonify({
+                        "status": "no_base_order_opened",
+                        "botname": botname,
+                        "reason": "beenden=nein",
+                        "logs": logs
+                    })
+                else:
+                    open_sell_orders_exist = False
+                    saved_usdt_amounts.pop(botname, None)
+                    status_fuer_alle.pop(botname, None)
+                    alarm_counter.pop(botname, None)
+                    base_order_times.pop(botname, None)
+    
                     
-                    logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
-                    logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
-                    logs.append(firebase_loesche_base_order_time(botname, firebase_secret))
-                    print("\n".join(logs))
-                except Exception as e:
-                    print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
+    
+                    status_fuer_alle[botname] = "OK"
+                    alarm_counter[botname] = -1
+                    
+                    try:
+                        
+                        logs.append(firebase_loesche_kaufpreise(botname, firebase_secret))
+                        logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+                        logs.append(firebase_loesche_base_order_time(botname, firebase_secret))
+                        print("\n".join(logs))
+                    except Exception as e:
+                        print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
     
         else:  # erste Order
             open_sell_orders_exist = False
@@ -627,21 +640,32 @@ def webhook():
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
         if not open_sell_orders_exist:
-            status_fuer_alle[botname] = "OK"
-            alarm_counter[botname] = -1
-           
-                
-            #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+             if beenden.lower() == "ja":
+                logs.append(f"⚠️ Bot {botname}: Beenden=ja → KEINE neue Base Order wird eröffnet")
+                # Nur Status zurückgeben, keine Base Order setzen
+                return jsonify({
+                    "status": "no_base_order_opened",
+                    "botname": botname,
+                    "reason": "beenden=nein",
+                    "logs": logs
+                })
+            else
         
-            if botname in saved_usdt_amounts:
-                del saved_usdt_amounts[botname]
-                logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
-        
-            if available_usdt is not None and pyramiding > 0:
-                # Erste Order bleibt unverändert
-                usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
-                saved_usdt_amounts[botname] = usdt_amount
-                logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
+                status_fuer_alle[botname] = "OK"
+                alarm_counter[botname] = -1
+               
+                    
+                #logs.append(firebase_loesche_ordergroesse(botname, firebase_secret))
+            
+                if botname in saved_usdt_amounts:
+                    del saved_usdt_amounts[botname]
+                    logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
+            
+                if available_usdt is not None and pyramiding > 0:
+                    # Erste Order bleibt unverändert
+                    usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                    saved_usdt_amounts[botname] = usdt_amount
+                    logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                 
         
         # Wenn globale Variable vorhanden → nächste Orders
