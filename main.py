@@ -640,7 +640,7 @@ def webhook():
         
         # Wenn keine offene Sell-Limit-Order existiert → erste Order
         if not open_sell_orders_exist:
-             if beenden.lower() == "ja":
+            if beenden.lower() == "ja":
                 logs.append(f"⚠️ Bot {botname}: Beenden=ja → KEINE neue Base Order wird eröffnet")
                 # Nur Status zurückgeben, keine Base Order setzen
                 return jsonify({
