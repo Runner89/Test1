@@ -608,7 +608,7 @@ def webhook():
                     return jsonify({
                         "status": "no_base_order_opened",
                         "botname": botname,
-                        "reason": "beenden=nein",
+                        "reason": "beenden=ja",
                         "logs": logs
                     })
                 else:
@@ -646,7 +646,7 @@ def webhook():
                 return jsonify({
                     "status": "no_base_order_opened",
                     "botname": botname,
-                    "reason": "beenden=nein",
+                    "reason": "beenden=ja",
                     "logs": logs
                 })
             else:
