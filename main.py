@@ -1591,6 +1591,8 @@ def webhook():
     
         # Weitere parameter
         pyramiding = float(data.get("RENDER", {}).get("pyramiding", 1))
+        leverageB = float(data.get("RENDER", {}).get("leverage", 1))     #float(data.get("leverage", 1))
+        sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverageB)    #float(data.get("sicherheit", 0) * leverageB)
         leverage = float(data.get("RENDER", {}).get("leverage", 1))
         sicherheit_param = float(data.get("RENDER", {}).get("sicherheit", 0))
         # Hinweis: in vielen deiner bisherigen Codes wurde Sicherheiten mit Hebel multipliziert -> beibehalten falls gewünscht
