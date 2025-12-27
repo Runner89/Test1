@@ -1048,7 +1048,54 @@ def webhook():
                     "result": ergebnis.get("result", None)
                 })  # <-- alle Klammern geschlossen
         else:
-    
+
+
+
+
+             # === Hebel NUR vor echter Base Order setzen ===
+            position_size, _, _ = get_current_position(
+                api_key,
+                secret_key,
+                symbol,
+                position_side,
+                logs
+            )
+            
+            if position_size == 0 and action != "increase":
+                try:
+                    logs.append(
+                        f"Setze Hebel VOR Base Order auf {leverageB}x "
+                        f"(position_size={position_size})"
+                    )
+            
+                    leverage_response = set_leverage(
+                        api_key,
+                        secret_key,
+                        symbol,
+                        leverageB,
+                        position_side
+                    )
+            
+                    logs.append(f"Hebel-Response: {leverage_response}")
+            
+                    time.sleep(0.2)  # BingX Sync
+            
+                    if leverage_response.get("code") != 0:
+                        raise Exception(leverage_response)
+            
+                except Exception as e:
+                    logs.append(f"❌ Hebel konnte nicht gesetzt werden: {e}")
+                    return jsonify({
+                        "error": True,
+                        "msg": "Hebel konnte nicht gesetzt werden",
+                        "logs": logs
+                    })
+            else:
+                logs.append(
+                    f"Hebel NICHT gesetzt "
+                    f"(position_size={position_size}, action={action})"
+                )
+
             
     
             available_usdt = 0.0
@@ -1068,14 +1115,23 @@ def webhook():
                 logs.append(f"Fehler bei Balance-Abfrage: {e}")
                 available_usdt = None
         
-            # 1. Hebel setzen
-            try:
-                logs.append(f"Setze Hebel auf {leverageB} für {symbol} ({position_side})...")
-                leverage_response = set_leverage(api_key, secret_key, symbol, leverageB, position_side)
-                logs.append(f"Hebel gesetzt: {leverage_response}")
-            except Exception as e:
-                logs.append(f"Fehler beim Setzen des Hebels: {e}")
-        
+
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
             # 2. Offene Orders abrufen
             open_orders = {}
             try:
