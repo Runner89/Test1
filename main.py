@@ -507,10 +507,11 @@ def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "side": position_side.upper()  # <-- WICHTIG: LONG oder SHORT
+        "side": position_side.upper()  # LONG oder SHORT
     }
 
-    return send_signed_request("POST", endpoint, api_key, secret_key, params))
+    return send_signed_request("POST", endpoint, api_key, secret_key, params)
+
 
 ### SHORT Funktionen
 # === Hilfsfunktionen ===
