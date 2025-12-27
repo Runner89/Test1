@@ -503,20 +503,14 @@ def firebase_lese_base_order_time(botname, firebase_secret):
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
-    
-    # mappe positionSide auf side für Hebel-Setzung
-    side_map = {
-        "LONG": "BUY",
-        "SHORT": "SELL"
-    }
-    
+
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "positionSide": position_side.upper(),
-        "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
+        "side": position_side.upper()  # <-- WICHTIG: LONG oder SHORT
     }
-    return send_signed_request("POST", endpoint, api_key, secret_key, params)
+
+    return send_signed_request("POST", endpoint, api_key, secret_key, params))
 
 ### SHORT Funktionen
 # === Hilfsfunktionen ===
