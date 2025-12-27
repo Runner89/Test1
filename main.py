@@ -1718,7 +1718,7 @@ def webhook():
                     f"(position_size={position_size})"
                 )
         
-                leverage_response = set_leverage(
+                leverage_response = SHORT_set_leverage(
                     api_key,
                     secret_key,
                     symbol,
