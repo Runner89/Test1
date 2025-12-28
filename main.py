@@ -919,6 +919,7 @@ def webhook():
     global alarm_counter
     global base_order_times
     global aktueller_Bot
+    global ma_Inhalt
 
     data = request.json
     logs = []
@@ -963,14 +964,23 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
-
-      
+        ma = data.get("RENDER", {}).get("ma")
+     
 
    
         
         if action == "close" and botname:
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
+
+
+            if ma1_value is not None:
+                # Key existiert, hier kannst du den Wert prüfen
+                if ma == "SL1":
+                    ma_Inhalt = "SL1"
+            else:
+                # Key fehlt im Webhook
+                print("ma1 ist im Webhook nicht vorhanden")
             
             # Logs ausgeben
             print(ergebnis.get("logs", []))
