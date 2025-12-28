@@ -997,6 +997,9 @@ def webhook():
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
+            If ma == "SL1":
+                firebase_create_ma(bot_nr, firebase_secret, "SL1") 
+
             
             
             # Logs ausgeben
