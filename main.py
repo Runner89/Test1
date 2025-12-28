@@ -988,12 +988,13 @@ def webhook():
         
         if action == "close" and botname:
             # Position schließen
-            ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
+            result = close_open_position(api_key, secret_key, symbol, position_side)
+            logs.append(result)
 
             if ma == "SL1":
-                firebase_create_ma(bot_nr, firebase_secret, 1) 
-
-            
+                result = firebase_create_ma(bot_nr, firebase_secret, 1) 
+                logs.append(result)
+           
             
             # Logs ausgeben
             print(ergebnis.get("logs", []))
