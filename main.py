@@ -943,6 +943,7 @@ def webhook():
     global aktueller_Bot
     global ma_Inhalt
 
+    ma_Inhalt = None
 
 
     data = request.json
