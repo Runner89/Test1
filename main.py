@@ -378,22 +378,15 @@ def firebase_create_ma(bot_nr, firebase_secret, value):
     
     response = requests.put(url, json=value)
     
-    if response.status_code == 200:
-        return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
-    else:
-        return f"Fehler beim Erstellen von MA/{bot_nr}: {response.status_code} {response.text}"
+    return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
 
 def firebase_delete_ma(bot_nr, firebase_secret):
    
     url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
     
     response = requests.delete(url)
-    
-    if response.status_code == 200:
-        return f"MA/{bot_nr} erfolgreich gelöscht."
-    else:
-        return f"Fehler beim Löschen von MA/{bot_nr}: {response.status_code} {response.text}"
 
+    return f"MA/{bot_nr} erfolgreich gelöscht."
 
 
 def firebase_delete_aktueller_bot(bot_nr, firebase_secret):
