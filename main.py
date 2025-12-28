@@ -992,7 +992,7 @@ def webhook():
      
 
    
-        
+        print(f"DEBUG: action='{action}', botname='{botname}'")
         if action == "close" and botname:
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
