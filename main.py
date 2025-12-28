@@ -1003,7 +1003,7 @@ def webhook():
                 # Key existiert, hier kannst du den Wert prüfen
                 if ma == "SL1":
                     ma_Inhalt = "SL1"
-                    result = firebase_create_ma(bot_nr, "firebase_secret", "SL1")
+                    result = firebase_create_ma(bot_nr, firebase_secret, "SL1")
                     logs.append(f"Firebase-Result: {result}")
            
             else:
