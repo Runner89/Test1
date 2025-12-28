@@ -943,7 +943,7 @@ def webhook():
     global aktueller_Bot
     global ma_Inhalt
 
-    ma_Inhalt = None
+
 
     data = request.json
     logs = []
@@ -1002,7 +1002,9 @@ def webhook():
                 # Key existiert, hier kannst du den Wert prüfen
                 if ma == "SL1":
                     ma_Inhalt = "SL1"
-                    firebase_create_ma(bot_nr, "firebase_secret", "SL1")
+                    result = firebase_create_ma(bot_nr, "firebase_secret", "SL1")
+                    logs.append(f"Firebase-Result: {result}")
+           
             else:
                 # Key fehlt im Webhook
                 print("ma1 ist im Webhook nicht vorhanden")
