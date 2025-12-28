@@ -997,7 +997,7 @@ def webhook():
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
-
+            logs.append(f"ma Webhook: {ma}")
             if ma is not None:
                 # Key existiert, hier kannst du den Wert prüfen
                 if ma == "SL1":
