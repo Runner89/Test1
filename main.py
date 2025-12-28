@@ -1002,7 +1002,7 @@ def webhook():
                 # Key existiert, hier kannst du den Wert prüfen
                 if ma == "SL1":
                     ma_Inhalt = "SL1"
-                    firebase_create_ma(1, "firebase_secret", "SL1")
+                    firebase_create_ma(bot_nr, "firebase_secret", "SL1")
             else:
                 # Key fehlt im Webhook
                 print("ma1 ist im Webhook nicht vorhanden")
