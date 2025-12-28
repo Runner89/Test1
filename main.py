@@ -998,7 +998,7 @@ def webhook():
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
             if ma == "SL1":
-                firebase_create_ma(bot_nr, firebase_secret, 1) 
+                status = firebase_create_ma(bot_nr, firebase_secret, 1) 
 
             
             
