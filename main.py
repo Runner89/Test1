@@ -986,19 +986,16 @@ def webhook():
 
    
         
+ 
+        
         if action == "close" and botname:
             # Position schließen
-            result = close_open_position(api_key, secret_key, symbol, position_side)
-            logs.append(result)
-
-            if ma == "SL1":
-                result = firebase_create_ma(bot_nr, firebase_secret, 1) 
-                logs.append(result)
-           
+            ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
             
             # Logs ausgeben
             print(ergebnis.get("logs", []))
             print(ergebnis.get("result", None))
+
             
             # Nur die Daten für diesen Bot zurücksetzen
             saved_usdt_amounts.pop(botname, None)
