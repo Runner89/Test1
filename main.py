@@ -1302,7 +1302,10 @@ def webhook():
                 logs.append(f"Fehler bei Marketorder: {e}")
                 status_fuer_alle[botname] = "Fehler"
                 sende_telegram_nachricht(botname, f"❌❌❌ Marketorder konnte nicht gesetzt werden für Bot: {botname}")
-                
+
+            # ma zurücksetzen in Firebase und in globale Variable
+            firebase_delete_ma(bot_nr, firebase_secret)
+            ma_Inhalt == ""
                 
             # 5. Positionsgröße und Liquidationspreis ermitteln
             try:
@@ -1647,6 +1650,7 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
+        ma = data.get("RENDER", {}).get("ma")
         
         
     
@@ -1705,6 +1709,9 @@ def webhook():
             logs.append(f"Fehler bei Balance-Abfrage: {e}")
             SHORT_sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX bei Balance-Abfrage für Bot: {botname}")            
             available_usdt = None
+
+
+        
 
 
         # === SHORT: Hebel NUR vor echter Base Order setzen ===
