@@ -997,8 +997,8 @@ def webhook():
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
-            If ma == "SL1":
-                firebase_create_ma(bot_nr, firebase_secret, "SL1") 
+            if ma == "SL1":
+                firebase_create_ma(bot_nr, firebase_secret, 1) 
 
             
             
@@ -1185,7 +1185,7 @@ def webhook():
             else:  # erste Order
                 open_sell_orders_exist = False
 
-            firebase_create_ma(bot_nr, firebase_secret, "nein") 
+            firebase_create_ma(bot_nr, firebase_secret, 0) 
             
             logs.append(f"action={action}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
             
