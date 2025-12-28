@@ -1224,7 +1224,8 @@ def webhook():
                     position_margin = float(balance_data.get("positionMargin", 0))
                     
                     account_size = available_margin + position_margin
-                    
+
+                    logs.append(f"RAW balance response: {balance_response}")
                     logs.append(f"Accountgrösse: {account_size}")
                     logs.append(f"Verfügbare Marge: {available_margin}")
                     logs.append(f"Position Marge: {position_margin}")
