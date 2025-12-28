@@ -1218,20 +1218,17 @@ def webhook():
 
                     balance_response = get_futures_balance(api_key, secret_key)
                     
-                    available_margin = float(
-                        balance_response["data"]["balance"]["availableMargin"]
-                    )
+                    balance_data = balance_response.get("data", {}).get("balance", {})
                     
-                    position_margin = float(
-                        balance_response["data"]["balance"]["positionMargin"]
-                    )
+                    available_margin = float(balance_data.get("availableMargin", 0))
+                    position_margin = float(balance_data.get("positionMargin", 0))
                     
                     account_size = available_margin + position_margin
-
+                    
                     logs.append(f"Accountgrösse: {account_size}")
                     logs.append(f"Verfügbare Marge: {available_margin}")
                     logs.append(f"Position Marge: {position_margin}")
-        
+                                        
                     if available_usdt is not None and pyramiding > 0:
                         # Erste Order bleibt unverändert
                         #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
