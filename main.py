@@ -1214,10 +1214,28 @@ def webhook():
                     if botname in saved_usdt_amounts:
                         del saved_usdt_amounts[botname]
                         logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
-                
+
+
+                    balance_response = get_futures_balance(api_key, secret_key)
+                    
+                    available_margin = float(
+                        balance_response["data"]["balance"]["availableMargin"]
+                    )
+                    
+                    position_margin = float(
+                        balance_response["data"]["balance"]["positionMargin"]
+                    )
+                    
+                    account_size = available_margin + position_margin
+
+                    logs.append(f"Accountgrösse: {account_size}")
+                    logs.append(f"Verfügbare Marge: {available_margin}")
+                    logs.append(f"Position Marge: {position_margin}")
+        
                     if available_usdt is not None and pyramiding > 0:
                         # Erste Order bleibt unverändert
-                        usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                        #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                        usdt_amount = max((account_size - sicherheit) * bo_factor, 0)
                         saved_usdt_amounts[botname] = usdt_amount
                         logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                     
