@@ -404,6 +404,28 @@ def firebase_bot_is_active(bot_nr, botname, firebase_secret):
         print(f"Fehler bei Firebase-Abfrage: {e}")
         return False
 
+def firebase_create_ma(bot_nr, firebase_secret, value):
+  
+    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+    
+    response = requests.put(url, json=value)
+    
+    if response.status_code == 200:
+        return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
+    else:
+        return f"Fehler beim Erstellen von MA/{bot_nr}: {response.status_code} {response.text}"
+
+def firebase_delete_ma(bot_nr, firebase_secret):
+   
+    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+    
+    response = requests.delete(url)
+    
+    if response.status_code == 200:
+        return f"MA/{bot_nr} erfolgreich gelöscht."
+    else:
+        return f"Fehler beim Löschen von MA/{bot_nr}: {response.status_code} {response.text}"
+
 
 
 def firebase_lese_ordergroesse(botname, firebase_secret):
@@ -974,10 +996,11 @@ def webhook():
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
 
-            if ma1_value is not None:
+            if ma is not None:
                 # Key existiert, hier kannst du den Wert prüfen
                 if ma == "SL1":
                     ma_Inhalt = "SL1"
+                    firebase_create_ma(1, "firebase_secret", "SL1")
             else:
                 # Key fehlt im Webhook
                 print("ma1 ist im Webhook nicht vorhanden")
