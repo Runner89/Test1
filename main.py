@@ -1045,14 +1045,14 @@ def webhook():
             if ma_Inhalt == "SL1":
                 leverageB = 4
             else:
-                    # Firebase abrufen
-                    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-                    response = requests.get(url)
+                # Firebase abrufen
+                url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+                response = requests.get(url)
                     
-                    if response.status_code == 200:
-                        ma_Inhalt = response.json()  # Wert aus Firebase
-                    else:
-                        ma_Inhalt = None
+                if response.status_code == 200:
+                    ma_Inhalt = response.json()  # Wert aus Firebase
+                else:
+                    ma_Inhalt = None
                 
                 # Prüfen, ob ma_Inhalt jetzt einen Wert hat
                 if not ma_Inhalt:
