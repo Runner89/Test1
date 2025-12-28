@@ -1,8 +1,8 @@
-#17.12.2025
+#28.12.2025
 #nicht vyn
 
 
-#Es wird zu Beginn geprüft, welcher Bot aktiv ist. Der Code wird nur ausgeführt, wenn der Botname identisch ist, wie der Botname aus dem Webhook.-> Es gibt immer nur einen vollständigen Trade.
+#Botname wird ignoriert.
 #Market Order mit Hebel wird gesetzt
 #Hebel muss in BINGX selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
@@ -372,6 +372,29 @@ def firebase_set_aktueller_bot(bot_nr, botname, firebase_secret):
     response = requests.put(url, json=data)
     return f"aktueller_Bot[{bot_nr}] gesetzt: {botname}, Status: {response.status_code}"
 
+def firebase_create_ma(bot_nr, firebase_secret, value):
+  
+    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+    
+    response = requests.put(url, json=value)
+    
+    if response.status_code == 200:
+        return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
+    else:
+        return f"Fehler beim Erstellen von MA/{bot_nr}: {response.status_code} {response.text}"
+
+def firebase_delete_ma(bot_nr, firebase_secret):
+   
+    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+    
+    response = requests.delete(url)
+    
+    if response.status_code == 200:
+        return f"MA/{bot_nr} erfolgreich gelöscht."
+    else:
+        return f"Fehler beim Löschen von MA/{bot_nr}: {response.status_code} {response.text}"
+
+
 
 def firebase_delete_aktueller_bot(bot_nr, firebase_secret):
     url = f"{FIREBASE_URL}/aktueller_Bot/{bot_nr}.json?auth={firebase_secret}"
@@ -403,28 +426,6 @@ def firebase_bot_is_active(bot_nr, botname, firebase_secret):
     except Exception as e:
         print(f"Fehler bei Firebase-Abfrage: {e}")
         return False
-
-def firebase_create_ma(bot_nr, firebase_secret, value):
-  
-    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-    
-    response = requests.put(url, json=value)
-    
-    if response.status_code == 200:
-        return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
-    else:
-        return f"Fehler beim Erstellen von MA/{bot_nr}: {response.status_code} {response.text}"
-
-def firebase_delete_ma(bot_nr, firebase_secret):
-   
-    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-    
-    response = requests.delete(url)
-    
-    if response.status_code == 200:
-        return f"MA/{bot_nr} erfolgreich gelöscht."
-    else:
-        return f"Fehler beim Löschen von MA/{bot_nr}: {response.status_code} {response.text}"
 
 
 
@@ -943,9 +944,6 @@ def webhook():
     global aktueller_Bot
     global ma_Inhalt
 
-    ma_Inhalt = None
-
-
     data = request.json
     logs = []
 
@@ -990,25 +988,16 @@ def webhook():
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
         ma = data.get("RENDER", {}).get("ma")
-     
+
+      
 
    
-        print(f"DEBUG: action='{action}', botname='{botname}'")
+        
         if action == "close" and botname:
             # Position schließen
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
 
-         
-            if ma is not None:
-                # Key existiert, hier kannst du den Wert prüfen
-                if ma == "SL1":
-                    ma_Inhalt = "SL1"
-                    result = firebase_create_ma(bot_nr, firebase_secret, "SL1")
-                    logs.append(f"Firebase-Result: {result}")
-           
-            else:
-                # Key fehlt im Webhook
-                print("ma1 ist im Webhook nicht vorhanden")
+            firebase_create_ma(bot_nr, firebase_secret, "SL1")
             
             # Logs ausgeben
             print(ergebnis.get("logs", []))
@@ -1047,31 +1036,8 @@ def webhook():
                 })  # <-- alle Klammern geschlossen
         else:
 
-            if ma_Inhalt == "SL1":
-                leverageB = 4
-            else:
-                # Firebase abrufen
-                url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-                response = requests.get(url)
-                    
-                if response.status_code == 200:
-                    ma_Inhalt = response.json()  # Wert aus Firebase
-                else:
-                    ma_Inhalt = None
-                
-                # Prüfen, ob ma_Inhalt jetzt einen Wert hat
-                if not ma_Inhalt:
-                    # Wenn immer noch leer, Abfrage beenden
-                    logs.append(f"ma_Inhalt ist leer, If-Abfrage wird beendet")
-                else:
-                    # Hier kommt deine ursprüngliche If-Logik
-                    if ma_Inhalt == "SL1":
-                        leverageB = 4
-       
 
-            
-            
-            
+
 
              # === Hebel NUR vor echter Base Order setzen ===
             position_size, _, _ = get_current_position(
@@ -1307,10 +1273,7 @@ def webhook():
                 logs.append(f"Fehler bei Marketorder: {e}")
                 status_fuer_alle[botname] = "Fehler"
                 sende_telegram_nachricht(botname, f"❌❌❌ Marketorder konnte nicht gesetzt werden für Bot: {botname}")
-
-            # ma zurücksetzen in Firebase und in globale Variable
-            firebase_delete_ma(bot_nr, firebase_secret)
-            ma_Inhalt = ""
+                
                 
             # 5. Positionsgröße und Liquidationspreis ermitteln
             try:
@@ -1655,7 +1618,6 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
-        ma = data.get("RENDER", {}).get("ma")
         
         
     
@@ -1714,9 +1676,6 @@ def webhook():
             logs.append(f"Fehler bei Balance-Abfrage: {e}")
             SHORT_sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX bei Balance-Abfrage für Bot: {botname}")            
             available_usdt = None
-
-
-        
 
 
         # === SHORT: Hebel NUR vor echter Base Order setzen ===
