@@ -372,22 +372,6 @@ def firebase_set_aktueller_bot(bot_nr, botname, firebase_secret):
     response = requests.put(url, json=data)
     return f"aktueller_Bot[{bot_nr}] gesetzt: {botname}, Status: {response.status_code}"
 
-def firebase_create_ma(bot_nr, firebase_secret, value):
-  
-    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-    
-    response = requests.put(url, json=value)
-    
-    return f"MA/{bot_nr} erfolgreich erstellt und auf '{value}' gesetzt."
-
-def firebase_delete_ma(bot_nr, firebase_secret):
-   
-    url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-    
-    response = requests.delete(url)
-
-    return f"MA/{bot_nr} erfolgreich gelöscht."
-
 
 def firebase_delete_aktueller_bot(bot_nr, firebase_secret):
     url = f"{FIREBASE_URL}/aktueller_Bot/{bot_nr}.json?auth={firebase_secret}"
@@ -935,7 +919,6 @@ def webhook():
     global alarm_counter
     global base_order_times
     global aktueller_Bot
-    global ma_Inhalt
 
     data = request.json
     logs = []
@@ -980,13 +963,10 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
-        ma = data.get("RENDER", {}).get("ma")
 
       
 
    
-        
- 
         
         if action == "close" and botname:
             # Position schließen
@@ -995,7 +975,6 @@ def webhook():
             # Logs ausgeben
             print(ergebnis.get("logs", []))
             print(ergebnis.get("result", None))
-
             
             # Nur die Daten für diesen Bot zurücksetzen
             saved_usdt_amounts.pop(botname, None)
@@ -1175,8 +1154,6 @@ def webhook():
         
             else:  # erste Order
                 open_sell_orders_exist = False
-
-            firebase_create_ma(bot_nr, firebase_secret, 0) 
             
             logs.append(f"action={action}, botname={botname}, open_sell_orders_exist={open_sell_orders_exist}")
             
@@ -1551,26 +1528,26 @@ def webhook():
 
 
         
-        return jsonify({
-            "error": False,
-            "order_result": order_response,
-            "limit_order_result": limit_order_response,
-            "symbol": symbol,
-            "botname": botname,
-            "usdt_amount": usdt_amount,
-            "sell_quantity": sell_quantity,
-            "price_from_webhook": price_from_webhook,
-            "sell_percentage": sell_percentage,
-            "firebase_average_price": durchschnittspreis,
-            "firebase_all_prices": kaufpreise,
-            "usdt_balance_before_order": available_usdt,
-            "stop_loss_price": stop_loss_price if liquidation_price else None,
-            "stop_loss_price": stop_loss_price if 'stop_loss_price' in locals() else None,
-            "saved_usdt_amount": saved_usdt_amounts,
-            "status_fuer_alle": status_fuer_alle,
-            "Botname": botname,
-            "logs": logs
-        })
+            return jsonify({
+                "error": False,
+                "order_result": order_response,
+                "limit_order_result": limit_order_response,
+                "symbol": symbol,
+                "botname": botname,
+                "usdt_amount": usdt_amount,
+                "sell_quantity": sell_quantity,
+                "price_from_webhook": price_from_webhook,
+                "sell_percentage": sell_percentage,
+                "firebase_average_price": durchschnittspreis,
+                "firebase_all_prices": kaufpreise,
+                "usdt_balance_before_order": available_usdt,
+                "stop_loss_price": stop_loss_price if liquidation_price else None,
+                "stop_loss_price": stop_loss_price if 'stop_loss_price' in locals() else None,
+                "saved_usdt_amount": saved_usdt_amounts,
+                "status_fuer_alle": status_fuer_alle,
+                "Botname": botname,
+                "logs": logs
+            })
         
 #     #      #      #      #      #      #      #      #     #      #      #      #      #      #      #   #     #      #      #      #      #      #      #   #     #      #      #      #      #      #      #   
 
