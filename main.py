@@ -1310,7 +1310,7 @@ def webhook():
 
             # ma zurücksetzen in Firebase und in globale Variable
             firebase_delete_ma(bot_nr, firebase_secret)
-            ma_Inhalt == ""
+            ma_Inhalt = ""
                 
             # 5. Positionsgröße und Liquidationspreis ermitteln
             try:
