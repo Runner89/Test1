@@ -1221,7 +1221,7 @@ def webhook():
                     balance_data = balance_response.get("data", {}).get("balance", {})
                     
                     available_margin = float(balance_data.get("availableMargin", 0))
-                    position_margin = float(balance_data.get("positionMargin", 0))
+                    position_margin = float(balance_data.get("usedMargin", 0))
                     
                     account_size = available_margin + position_margin
 
