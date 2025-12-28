@@ -964,41 +964,7 @@ def webhook():
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
 
-       # Check: Offene SHORT-Position
-        # ------------------------------
-
-        if aktueller_Bot:
-            if bot_nr not in aktueller_Bot:
-                try:
-                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
-                    if anderer_bot_aktiv:
-                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
-                        return jsonify({
-                            "status": "different_bot_active_in_firebase",
-                            "botname": botname,
-                            "logs": logs
-                        })
-                    else:
-                        # Bot ist frei → hinzufügen
-                        aktueller_Bot[bot_nr] = botname
-                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
-                except Exception as e:
-                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
-                    return jsonify({
-                        "error": True,
-                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
-                        "logs": logs
-                    })
-            else:
-                if aktueller_Bot[bot_nr] == botname:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
-                else:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
-                    return jsonify({
-                        "status": "different_bot_active",
-                        "botname": botname,
-                        "logs": logs
-                    })
+      
 
    
         
@@ -1633,42 +1599,7 @@ def webhook():
     
             # Check Offene LONG-Position
         # ------------------------------
-      
-        
-        if aktueller_Bot:
-            if bot_nr not in aktueller_Bot:
-                try:
-                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
-                    if anderer_bot_aktiv:
-                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
-                        return jsonify({
-                            "status": "different_bot_active_in_firebase",
-                            "botname": botname,
-                            "logs": logs
-                        })
-                    else:
-                        # Bot ist frei → hinzufügen
-                        aktueller_Bot[bot_nr] = botname
-                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
-                except Exception as e:
-                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
-                    return jsonify({
-                        "error": True,
-                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
-                        "logs": logs
-                    })
-            else:
-                if aktueller_Bot[bot_nr] == botname:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
-                else:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
-                    return jsonify({
-                        "status": "different_bot_active",
-                        "botname": botname,
-                        "logs": logs
-                    })
-
-   
+       
 
     
         # action == "close" -> sofort close der SHORT position
