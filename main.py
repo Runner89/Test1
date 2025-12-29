@@ -491,6 +491,18 @@ def firebase_loesche_ma_bot(bot_nr, firebase_secret):
 
     except Exception as e:
         return f"Exception beim Löschen von MA/{bot_nr}: {e}"
+
+def firebase_lese_ma_wert(bot_nr, firebase_secret):
+    try:
+        url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+        r = requests.get(url, timeout=5)
+        if r.status_code != 200:
+            return 0
+        val = r.json()
+        return int(val) if val is not None else 0
+    except Exception as e:
+        print(f"Fehler beim Lesen von MA/{bot_nr}: {e}")
+        return 0
         
 
 def berechne_durchschnittspreis(käufe):
@@ -988,6 +1000,7 @@ def webhook():
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
         ma = int(data.get("RENDER", {}).get("ma", 0))
+        leverage2 = int(data.get("RENDER", {}).get("leverage2", 0))
         
 
       
@@ -1064,6 +1077,30 @@ def webhook():
             
             if position_size == 0 and action != "increase":
                 try:
+
+                    if bot_nr in ma_Wert:
+                        ma_aktiv = ma_Wert.get(bot_nr, 0)
+                        logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                
+                    # 2) falls nicht vorhanden → Firebase
+                    else:
+                        ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
+                        logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                
+                    # 3) wenn MA aktiv → Hebel NICHT setzen
+                    if ma_aktiv == 1:
+                        leverageB = leverage2
+                        logs.append(
+                            f"Hebel wurde geändert, da MA=1 "
+                            f"(bot_nr={bot_nr}, position_size={position_size})"
+                        )
+                    # sauber abbrechen → kein Hebel, aber weiter im Code
+                        pass
+                    else:
+                        
+                        logs.append("Hebel auf {leverageB} gesetzt")
+
+                    
                     logs.append(
                         f"Setze Hebel VOR Base Order auf {leverageB}x "
                         f"(position_size={position_size})"
