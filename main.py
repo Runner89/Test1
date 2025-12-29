@@ -1713,6 +1713,13 @@ def webhook():
             if bot_nr in aktueller_Bot and aktueller_Bot[bot_nr] == botname:
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
+
+            print(f"MA-Wert für Bot_Nr = {ma}")    
+            if ma == 1:
+                res = firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
+                print("DEBUG firebase_setze_ma_wert:", res)
+                ma_Wert[bot_nr] = 1
+                print(f"MA-Wert auf 1 gesetzt für Bot_Nr {bot_nr}")
             
             # optional: firebase löschen
             if firebase_secret:
