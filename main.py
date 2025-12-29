@@ -1325,7 +1325,7 @@ def webhook():
                     status_fuer_alle[botname] = "Fehler"
 
             firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-            ma_Werte[bot_nr] = 0
+            ma_Wert[bot_nr] = 0
             
             
             # 8. Durchschnittspreis bestimmen
