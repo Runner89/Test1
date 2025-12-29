@@ -1,7 +1,8 @@
+#28.12.2025
 #nicht vyn
 
 
-#Es wird zu Beginn geprüft, welcher Bot aktiv ist. Der Code wird nur ausgeführt, wenn der Botname identisch ist, wie der Botname aus dem Webhook.-> Es gibt immer nur einen vollständigen Trade.
+#Botname wird ignoriert.
 #Market Order mit Hebel wird gesetzt
 #Hebel muss in BINGX selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
@@ -19,6 +20,8 @@
 #vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
 #Wenn Position auf BINGX schon gelöscht wurde und bei Traidingview noch nicht, wird der nächste increase-Befehl ignoriert
 #Nach x Stunden seit BO oder nach x SO wird die Sell-Limit-Order auf x % gesetzt
+# bot_nr = Chart
+# botname = botname
 #
 
 #https://......../webhook
@@ -500,20 +503,15 @@ def firebase_lese_base_order_time(botname, firebase_secret):
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
-    
-    # mappe positionSide auf side für Hebel-Setzung
-    side_map = {
-        "LONG": "BUY",
-        "SHORT": "SELL"
-    }
-    
+
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "positionSide": position_side.upper(),
-        "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
+        "side": position_side.upper()  # LONG oder SHORT
     }
+
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
+
 
 ### SHORT Funktionen
 # === Hilfsfunktionen ===
@@ -673,16 +671,15 @@ def SHORT_sende_telegram_nachricht(botname, text):
         return f"Telegram Fehler: {e}"
 
 # === Order-Funktionen (SHORT-optimiert) ===
-def SHORT_set_leverage(api_key, secret_key, symbol, leverage, position_side="SHORT"):
-    # position_side must be "SHORT" here; map side accordingly
+def SHORT_set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
-    side_map = {"LONG": "BUY", "SHORT": "SELL"}
+
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "positionSide": position_side.upper(),
-        "side": side_map.get(position_side.upper())
+        "side": position_side.upper()  # LONG oder SHORT
     }
+
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
 
 def SHORT_place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="SHORT"):
@@ -967,41 +964,7 @@ def webhook():
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
 
-       # Check: Offene SHORT-Position
-        # ------------------------------
-
-        if aktueller_Bot:
-            if bot_nr not in aktueller_Bot:
-                try:
-                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
-                    if anderer_bot_aktiv:
-                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
-                        return jsonify({
-                            "status": "different_bot_active_in_firebase",
-                            "botname": botname,
-                            "logs": logs
-                        })
-                    else:
-                        # Bot ist frei → hinzufügen
-                        aktueller_Bot[bot_nr] = botname
-                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
-                except Exception as e:
-                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
-                    return jsonify({
-                        "error": True,
-                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
-                        "logs": logs
-                    })
-            else:
-                if aktueller_Bot[bot_nr] == botname:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
-                else:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
-                    return jsonify({
-                        "status": "different_bot_active",
-                        "botname": botname,
-                        "logs": logs
-                    })
+      
 
    
         
@@ -1037,15 +1000,62 @@ def webhook():
                 except Exception as e:
                     print(f"Fehler beim Löschen von Kaufpreisen/Ordergrößen für {botname}: {e}")
     
-                 # **Hier ein Response zurückgeben**
-                return jsonify({
-                    "status": "position_closed",
-                    "botname": botname,
-                    "logs": ergebnis.get("logs", []),
-                    "result": ergebnis.get("result", None)
-                })  # <-- alle Klammern geschlossen
+             # **Hier ein Response zurückgeben**
+            return jsonify({
+                "status": "position_closed",
+                "botname": botname,
+                "logs": ergebnis.get("logs", []),
+                "result": ergebnis.get("result", None)
+            })  # <-- alle Klammern geschlossen
         else:
-    
+
+
+
+
+             # === Hebel NUR vor echter Base Order setzen ===
+            position_size, _, _ = get_current_position(
+                api_key,
+                secret_key,
+                symbol,
+                position_side,
+                logs
+            )
+            
+            if position_size == 0 and action != "increase":
+                try:
+                    logs.append(
+                        f"Setze Hebel VOR Base Order auf {leverageB}x "
+                        f"(position_size={position_size})"
+                    )
+            
+                    leverage_response = set_leverage(
+                        api_key,
+                        secret_key,
+                        symbol,
+                        leverageB,
+                        position_side
+                    )
+            
+                    logs.append(f"Hebel-Response: {leverage_response}")
+            
+                    time.sleep(0.2)  # BingX Sync
+            
+                    if leverage_response.get("code") != 0:
+                        raise Exception(leverage_response)
+            
+                except Exception as e:
+                    logs.append(f"❌ Hebel konnte nicht gesetzt werden: {e}")
+                    return jsonify({
+                        "error": True,
+                        "msg": "Hebel konnte nicht gesetzt werden",
+                        "logs": logs
+                    })
+            else:
+                logs.append(
+                    f"Hebel NICHT gesetzt "
+                    f"(position_size={position_size}, action={action})"
+                )
+
             
     
             available_usdt = 0.0
@@ -1065,14 +1075,23 @@ def webhook():
                 logs.append(f"Fehler bei Balance-Abfrage: {e}")
                 available_usdt = None
         
-            # 1. Hebel setzen
-            try:
-                logs.append(f"Setze Hebel auf {leverageB} für {symbol} ({position_side})...")
-                leverage_response = set_leverage(api_key, secret_key, symbol, leverageB, position_side)
-                logs.append(f"Hebel gesetzt: {leverage_response}")
-            except Exception as e:
-                logs.append(f"Fehler beim Setzen des Hebels: {e}")
-        
+
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
             # 2. Offene Orders abrufen
             open_orders = {}
             try:
@@ -1161,10 +1180,26 @@ def webhook():
                     if botname in saved_usdt_amounts:
                         del saved_usdt_amounts[botname]
                         logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
-                
+
+
+                    balance_response = get_futures_balance(api_key, secret_key)
+                    
+                    balance_data = balance_response.get("data", {}).get("balance", {})
+                    
+                    available_margin = float(balance_data.get("availableMargin", 0))
+                    position_margin = float(balance_data.get("usedMargin", 0))
+                    
+                    account_size = available_margin + position_margin
+
+                    logs.append(f"RAW balance response: {balance_response}")
+                    logs.append(f"Accountgrösse: {account_size}")
+                    logs.append(f"Verfügbare Marge: {available_margin}")
+                    logs.append(f"Position Marge: {position_margin}")
+                                        
                     if available_usdt is not None and pyramiding > 0:
                         # Erste Order bleibt unverändert
-                        usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                        #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
+                        usdt_amount = max((account_size - sicherheit) * bo_factor, 0)
                         saved_usdt_amounts[botname] = usdt_amount
                         logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                     
@@ -1538,6 +1573,8 @@ def webhook():
     
         # Weitere parameter
         pyramiding = float(data.get("RENDER", {}).get("pyramiding", 1))
+        leverageB = float(data.get("RENDER", {}).get("leverage", 1))     #float(data.get("leverage", 1))
+        sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverageB)    #float(data.get("sicherheit", 0) * leverageB)
         leverage = float(data.get("RENDER", {}).get("leverage", 1))
         sicherheit_param = float(data.get("RENDER", {}).get("sicherheit", 0))
         # Hinweis: in vielen deiner bisherigen Codes wurde Sicherheiten mit Hebel multipliziert -> beibehalten falls gewünscht
@@ -1562,42 +1599,7 @@ def webhook():
     
             # Check Offene LONG-Position
         # ------------------------------
-      
-        
-        if aktueller_Bot:
-            if bot_nr not in aktueller_Bot:
-                try:
-                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
-                    if anderer_bot_aktiv:
-                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
-                        return jsonify({
-                            "status": "different_bot_active_in_firebase",
-                            "botname": botname,
-                            "logs": logs
-                        })
-                    else:
-                        # Bot ist frei → hinzufügen
-                        aktueller_Bot[bot_nr] = botname
-                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
-                except Exception as e:
-                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
-                    return jsonify({
-                        "error": True,
-                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
-                        "logs": logs
-                    })
-            else:
-                if aktueller_Bot[bot_nr] == botname:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
-                else:
-                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
-                    return jsonify({
-                        "status": "different_bot_active",
-                        "botname": botname,
-                        "logs": logs
-                    })
-
-   
+       
 
     
         # action == "close" -> sofort close der SHORT position
@@ -1647,15 +1649,54 @@ def webhook():
             logs.append(f"Fehler bei Balance-Abfrage: {e}")
             SHORT_sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX bei Balance-Abfrage für Bot: {botname}")            
             available_usdt = None
+
+
+        # === SHORT: Hebel NUR vor echter Base Order setzen ===
+        position_size, _, _ = get_current_position(
+            api_key,
+            secret_key,
+            symbol,
+            "SHORT",
+            logs
+        )
+        
+        if position_size == 0 and action != "increase":
+            try:
+                logs.append(
+                    f"[SHORT] Setze Hebel VOR Base Order auf {leverageB}x "
+                    f"(position_size={position_size})"
+                )
+        
+                leverage_response = SHORT_set_leverage(
+                    api_key,
+                    secret_key,
+                    symbol,
+                    leverageB,
+                    "SHORT"  # <<< ENTSCHEIDEND
+                )
+        
+                logs.append(f"[SHORT] Hebel-Response: {leverage_response}")
+        
+                time.sleep(0.2)
+        
+                if leverage_response.get("code") != 0:
+                    raise Exception(leverage_response)
+        
+            except Exception as e:
+                logs.append(f"❌ [SHORT] Hebel konnte nicht gesetzt werden: {e}")
+                return jsonify({
+                    "error": True,
+                    "msg": "SHORT Hebel konnte nicht gesetzt werden",
+                    "logs": logs
+                })
+        else:
+            logs.append(
+                f"[SHORT] Hebel NICHT gesetzt "
+                f"(position_size={position_size}, action={action})"
+            )
+
     
-        # 1. Hebel setzen (SHORT)
-        try:
-            logs.append(f"Setze Hebel auf {leverage} für {symbol} (SHORT)...")
-            lev_resp = SHORT_set_leverage(api_key, secret_key, symbol, leverage, "SHORT")
-            logs.append(f"Leverage Response: {lev_resp}")
-        except Exception as e:
-            logs.append(f"Fehler beim Setzen des Hebels: {e}")
-    
+
         # 2. Offene Orders abrufen (um alte TP/SL/Limit zu handhaben)
         open_orders = {}
         try:
@@ -1716,7 +1757,23 @@ def webhook():
                     del saved_usdt_amounts[botname]
                     logs.append("Ordergröße im Cache gelöscht (erste Order)")
                 if available_usdt is not None and pyramiding > 0:
-                    usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
+
+
+                    balance_response = get_futures_balance(api_key, secret_key)
+                    
+                    balance_data = balance_response.get("data", {}).get("balance", {})
+                    
+                    available_margin = float(balance_data.get("availableMargin", 0))
+                    position_margin = float(balance_data.get("usedMargin", 0))
+                    
+                    account_size = available_margin + position_margin
+
+                    logs.append(f"RAW balance response: {balance_response}")
+                    logs.append(f"Accountgrösse: {account_size}")
+                    logs.append(f"Verfügbare Marge: {available_margin}")
+                    logs.append(f"Position Marge: {position_margin}")
+                    
+                    usdt_amount = max((account_size - sicherheit) * bo_factor, 0)   #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
                     saved_usdt_amounts[botname] = usdt_amount
                     logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
         else:
