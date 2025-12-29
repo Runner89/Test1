@@ -1033,7 +1033,7 @@ def webhook():
                     logs.append(firebase_loesche_base_order_time(botname, firebase_secret))
                     logs.append(firebase_delete_aktueller_bot(bot_nr, firebase_secret))
 
-                     if ma == 1:
+                    if ma == 1:
                         firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
                         ma_Wert[bot_nr] = 1
                         print(f"MA-Wert auf 1 gesetzt für Bot_Nr {bot_nr})
