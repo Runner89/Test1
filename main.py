@@ -472,16 +472,10 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
 
 
 def firebase_setze_ma_wert(bot_nr, wert, firebase_secret):
-  
     try:
         url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
-        response = requests.put(url, data=json.dumps(wert))
-
-        if response.status_code == 200:
-            return f"MA/{bot_nr} = {wert} gesetzt."
-        else:
-            return f"Fehler beim Setzen von MA/{bot_nr}: Status {response.status_code}"
-
+        response = requests.put(url, json=wert)  # <-- sauber
+        return f"MA/{bot_nr} = {wert} gesetzt. Status: {response.status_code}, Body: {response.text}"
     except Exception as e:
         return f"Exception beim Setzen von MA/{bot_nr}: {e}"
 
@@ -1002,6 +996,12 @@ def webhook():
         
         if action == "close" and botname:
             # Position schließen
+            print("DEBUG close reached")
+            print("DEBUG action:", action)
+            print("DEBUG botname:", botname)
+            print("DEBUG bot_nr:", bot_nr, type(bot_nr))
+            print("DEBUG ma raw:", data.get("RENDER", {}).get("ma"), type(data.get("RENDER", {}).get("ma")))
+            print("DEBUG ma int:", ma, type(ma))
             ergebnis = close_open_position(api_key, secret_key, symbol, position_side)
             
             # Logs ausgeben
@@ -1020,7 +1020,8 @@ def webhook():
                 
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
-                firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
+                res = firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
+                print("DEBUG firebase_setze_ma_wert:", res)
                 ma_Wert[bot_nr] = 1
                 print(f"MA-Wert auf 1 gesetzt für Bot_Nr {bot_nr}")
                 
