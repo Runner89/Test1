@@ -1323,7 +1323,11 @@ def webhook():
                 except Exception as e:
                     logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
                     status_fuer_alle[botname] = "Fehler"
-        
+
+            firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+            ma_Wert = 0
+            
+            
             # 8. Durchschnittspreis bestimmen
             durchschnittspreis = None
             kaufpreise = []
