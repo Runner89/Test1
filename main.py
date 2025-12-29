@@ -1,8 +1,8 @@
-#28.12.2025
+#17.12.2025
 #nicht vyn
 
 
-#Botname wird ignoriert.
+#Es wird zu Beginn geprüft, welcher Bot aktiv ist. Der Code wird nur ausgeführt, wenn der Botname identisch ist, wie der Botname aus dem Webhook.-> Es gibt immer nur einen vollständigen Trade.
 #Market Order mit Hebel wird gesetzt
 #Hebel muss in BINGX selber vorher eingestellt werden
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
@@ -964,7 +964,41 @@ def webhook():
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
 
-      
+       # Check: Offene SHORT-Position
+        # ------------------------------
+
+        if aktueller_Bot:
+            if bot_nr not in aktueller_Bot:
+                try:
+                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
+                    if anderer_bot_aktiv:
+                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
+                        return jsonify({
+                            "status": "different_bot_active_in_firebase",
+                            "botname": botname,
+                            "logs": logs
+                        })
+                    else:
+                        # Bot ist frei → hinzufügen
+                        aktueller_Bot[bot_nr] = botname
+                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
+                except Exception as e:
+                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
+                    return jsonify({
+                        "error": True,
+                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
+                        "logs": logs
+                    })
+            else:
+                if aktueller_Bot[bot_nr] == botname:
+                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
+                else:
+                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
+                    return jsonify({
+                        "status": "different_bot_active",
+                        "botname": botname,
+                        "logs": logs
+                    })
 
    
         
@@ -1180,26 +1214,10 @@ def webhook():
                     if botname in saved_usdt_amounts:
                         del saved_usdt_amounts[botname]
                         logs.append(f"Ordergröße aus Cache für {botname} gelöscht (erste Order)")
-
-
-                    balance_response = get_futures_balance(api_key, secret_key)
-                    
-                    balance_data = balance_response.get("data", {}).get("balance", {})
-                    
-                    available_margin = float(balance_data.get("availableMargin", 0))
-                    position_margin = float(balance_data.get("usedMargin", 0))
-                    
-                    account_size = available_margin + position_margin
-
-                    logs.append(f"RAW balance response: {balance_response}")
-                    logs.append(f"Accountgrösse: {account_size}")
-                    logs.append(f"Verfügbare Marge: {available_margin}")
-                    logs.append(f"Position Marge: {position_margin}")
-                                        
+                
                     if available_usdt is not None and pyramiding > 0:
                         # Erste Order bleibt unverändert
-                        #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
-                        usdt_amount = max((account_size - sicherheit) * bo_factor, 0)
+                        usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
                         saved_usdt_amounts[botname] = usdt_amount
                         logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
                     
@@ -1528,26 +1546,26 @@ def webhook():
 
 
         
-        return jsonify({
-            "error": False,
-            "order_result": order_response,
-            "limit_order_result": limit_order_response,
-            "symbol": symbol,
-            "botname": botname,
-            "usdt_amount": usdt_amount,
-            "sell_quantity": sell_quantity,
-            "price_from_webhook": price_from_webhook,
-            "sell_percentage": sell_percentage,
-            "firebase_average_price": durchschnittspreis,
-            "firebase_all_prices": kaufpreise,
-            "usdt_balance_before_order": available_usdt,
-            "stop_loss_price": stop_loss_price if liquidation_price else None,
-            "stop_loss_price": stop_loss_price if 'stop_loss_price' in locals() else None,
-            "saved_usdt_amount": saved_usdt_amounts,
-            "status_fuer_alle": status_fuer_alle,
-            "Botname": botname,
-            "logs": logs
-        })
+            return jsonify({
+                "error": False,
+                "order_result": order_response,
+                "limit_order_result": limit_order_response,
+                "symbol": symbol,
+                "botname": botname,
+                "usdt_amount": usdt_amount,
+                "sell_quantity": sell_quantity,
+                "price_from_webhook": price_from_webhook,
+                "sell_percentage": sell_percentage,
+                "firebase_average_price": durchschnittspreis,
+                "firebase_all_prices": kaufpreise,
+                "usdt_balance_before_order": available_usdt,
+                "stop_loss_price": stop_loss_price if liquidation_price else None,
+                "stop_loss_price": stop_loss_price if 'stop_loss_price' in locals() else None,
+                "saved_usdt_amount": saved_usdt_amounts,
+                "status_fuer_alle": status_fuer_alle,
+                "Botname": botname,
+                "logs": logs
+            })
         
 #     #      #      #      #      #      #      #      #     #      #      #      #      #      #      #   #     #      #      #      #      #      #      #   #     #      #      #      #      #      #      #   
 
@@ -1599,7 +1617,42 @@ def webhook():
     
             # Check Offene LONG-Position
         # ------------------------------
-       
+      
+        
+        if aktueller_Bot:
+            if bot_nr not in aktueller_Bot:
+                try:
+                    anderer_bot_aktiv = firebase_bot_is_active(bot_nr, botname, firebase_secret)
+                    if anderer_bot_aktiv:
+                        logs.append(f"Bot {botname} ignoriert – anderer Bot aktiv in Firebase")
+                        return jsonify({
+                            "status": "different_bot_active_in_firebase",
+                            "botname": botname,
+                            "logs": logs
+                        })
+                    else:
+                        # Bot ist frei → hinzufügen
+                        aktueller_Bot[bot_nr] = botname
+                        logs.append(f"Bot {botname} mit Nummer {bot_nr} wurde zur globalen Variable hinzugefügt")
+                except Exception as e:
+                    logs.append(f"Fehler beim Prüfen von aktueller_Bot in Firebase: {e}")
+                    return jsonify({
+                        "error": True,
+                        "msg": "Fehler bei Firebase aktueller_Bot Prüfung",
+                        "logs": logs
+                    })
+            else:
+                if aktueller_Bot[bot_nr] == botname:
+                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist identisch in der globalen Variable")
+                else:
+                    logs.append(f"Bot {botname} mit Nummer {bot_nr} ist nicht identisch")
+                    return jsonify({
+                        "status": "different_bot_active",
+                        "botname": botname,
+                        "logs": logs
+                    })
+
+   
 
     
         # action == "close" -> sofort close der SHORT position
@@ -1757,23 +1810,7 @@ def webhook():
                     del saved_usdt_amounts[botname]
                     logs.append("Ordergröße im Cache gelöscht (erste Order)")
                 if available_usdt is not None and pyramiding > 0:
-
-
-                    balance_response = get_futures_balance(api_key, secret_key)
-                    
-                    balance_data = balance_response.get("data", {}).get("balance", {})
-                    
-                    available_margin = float(balance_data.get("availableMargin", 0))
-                    position_margin = float(balance_data.get("usedMargin", 0))
-                    
-                    account_size = available_margin + position_margin
-
-                    logs.append(f"RAW balance response: {balance_response}")
-                    logs.append(f"Accountgrösse: {account_size}")
-                    logs.append(f"Verfügbare Marge: {available_margin}")
-                    logs.append(f"Position Marge: {position_margin}")
-                    
-                    usdt_amount = max((account_size - sicherheit) * bo_factor, 0)   #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
+                    usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
                     saved_usdt_amounts[botname] = usdt_amount
                     logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
         else:
