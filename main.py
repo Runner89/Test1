@@ -948,7 +948,7 @@ def webhook():
     global alarm_counter
     global base_order_times
     global aktueller_Bot
-    global ma_Wert
+    
     ma_Wert = {}
     data = request.json
     logs = []
