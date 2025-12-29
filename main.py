@@ -1,4 +1,4 @@
-#28.12.2025
+#29.12.2025
 #nicht vyn
 
 
@@ -37,6 +37,7 @@
 #    "sell_percentage": 2.5,
 #    "price": {{close}},
 #    "leverage": 1,
+#    "leverage2": 1, Hebel nach SL
 #    "FIREBASE_SECRET": "",
 #    "alarm": 1,
 #    "pyramiding": 8, grösser als 0, wird nicht berücksichtig für Berechnung, es wird für BO gerechnet: (verfügbares Guthaben  - Sicherheit) * bo_factor
@@ -48,6 +49,7 @@
 #    "after_so": 14, nach x SO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt
 #    "sell_percentage2": 0.5,
 #    "sl": 10, Stop Loss bei x Prozent setzen
+#    "ma": 1, bei StopLoss muss ma 1 sein. Ansonsten 0
 #    "beenden": "nein" wenn ja, wird keine neue Position nach dem Schliessen der aktuellen Position geöffnet
 #    }}
 
