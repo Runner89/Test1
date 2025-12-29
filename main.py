@@ -470,6 +470,35 @@ def firebase_lese_kaufpreise(botname, firebase_secret):
         print(f"Fehler beim Lesen der Kaufpreise: {e}")
         return []
 
+
+def firebase_setze_ma_wert(bot_nr, wert, firebase_secret):
+  
+    try:
+        url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+        response = requests.put(url, data=json.dumps(wert))
+
+        if response.status_code == 200:
+            return f"MA/{bot_nr} = {wert} gesetzt."
+        else:
+            return f"Fehler beim Setzen von MA/{bot_nr}: Status {response.status_code}"
+
+    except Exception as e:
+        return f"Exception beim Setzen von MA/{bot_nr}: {e}"
+
+def firebase_loesche_ma_bot(bot_nr, firebase_secret):
+    try:
+        url = f"{FIREBASE_URL}/MA/{bot_nr}.json?auth={firebase_secret}"
+        response = requests.delete(url)
+
+        if response.status_code == 200:
+            return f"MA/{bot_nr} erfolgreich gelöscht."
+        else:
+            return f"Fehler beim Löschen von MA/{bot_nr}: Status {response.status_code}"
+
+    except Exception as e:
+        return f"Exception beim Löschen von MA/{bot_nr}: {e}"
+        
+
 def berechne_durchschnittspreis(käufe):
     if not käufe:
         return None
@@ -919,6 +948,7 @@ def webhook():
     global alarm_counter
     global base_order_times
     global aktueller_Bot
+    global ma_Wert
 
     data = request.json
     logs = []
@@ -963,6 +993,8 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
+        ma = data.get("RENDER", {}).get("ma")
+        
 
       
 
@@ -985,6 +1017,11 @@ def webhook():
             if bot_nr in aktueller_Bot and aktueller_Bot[bot_nr] == botname:
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
+
+            if ma == 1:
+                firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
+                ma_Wert = 1
+                
             
             
             # Kaufpreise löschen (Firebase oder lokal)
