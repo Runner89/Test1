@@ -1675,6 +1675,8 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
+        ma = int(data.get("RENDER", {}).get("ma", 0))
+        leverage2 = int(data.get("RENDER", {}).get("leverage2", 0))
         
         
     
@@ -1688,8 +1690,21 @@ def webhook():
     
         # action == "close" -> sofort close der SHORT position
         if action == "close":
+
+            # Position schließen
+            print("DEBUG close reached")
+            print("DEBUG action:", action)
+            print("DEBUG botname:", botname)
+            print("DEBUG bot_nr:", bot_nr, type(bot_nr))
+            print("DEBUG ma raw:", data.get("RENDER", {}).get("ma"), type(data.get("RENDER", {}).get("ma")))
+            print("DEBUG ma int:", ma, type(ma))
             ergebnis = SHORT_close_open_position(api_key, secret_key, symbol, position_side)
-            # reset cache für diesen bot
+            
+            # Logs ausgeben
+            print(ergebnis.get("logs", []))
+            print(ergebnis.get("result", None))
+            
+            # Nur die Daten für diesen Bot zurücksetzen
             saved_usdt_amounts.pop(botname, None)
             status_fuer_alle.pop(botname, None)
             alarm_counter.pop(botname, None)
@@ -1743,23 +1758,48 @@ def webhook():
             "SHORT",
             logs
         )
-        
+
         if position_size == 0 and action != "increase":
             try:
+
+                if bot_nr in ma_Wert:
+                    ma_aktiv = ma_Wert.get(bot_nr, 0)
+                    logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+            
+                # 2) falls nicht vorhanden → Firebase
+                else:
+                    ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
+                    logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+            
+                # 3) wenn MA aktiv → Hebel NICHT setzen
+                if ma_aktiv == 1:
+                    leverageB = leverage2
+                    logs.append(
+                        f"Hebel wurde geändert, da MA=1 "
+                        f"(bot_nr={bot_nr}, position_size={position_size})"
+                    )
+                # sauber abbrechen → kein Hebel, aber weiter im Code
+                    pass
+                else:
+                    
+                    logs.append("Hebel auf {leverageB} gesetzt")
+
+                
                 logs.append(
-                    f"[SHORT] Setze Hebel VOR Base Order auf {leverageB}x "
+                    f"Setze Hebel VOR Base Order auf {leverageB}x "
                     f"(position_size={position_size})"
                 )
         
-                leverage_response = SHORT_set_leverage(
+                leverage_response = set_leverage(
                     api_key,
                     secret_key,
                     symbol,
                     leverageB,
-                    "SHORT"  # <<< ENTSCHEIDEND
+                    position_side
                 )
         
-                logs.append(f"[SHORT] Hebel-Response: {leverage_response}")
+                logs.append(f"Hebel-Response: {leverage_response}")
+
         
                 time.sleep(0.2)
         
@@ -1939,6 +1979,10 @@ def webhook():
             except Exception as e:
                 logs.append(f"Fehler beim Speichern Kaufpreis: {e}")
                 status_fuer_alle[botname] = "Fehler"
+
+        firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+        ma_Wert[bot_nr] = 0
+
     
         # 8. Durchschnittspreis (Firebase oder BingX fallback)
         durchschnittspreis = None
