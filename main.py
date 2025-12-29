@@ -1,4 +1,3 @@
-#17.12.2025
 #nicht vyn
 
 
@@ -20,8 +19,6 @@
 #vyn Alarm kann benutzt werden (inkl. close-Signal) und dann folgende Alarmnachricht
 #Wenn Position auf BINGX schon gelöscht wurde und bei Traidingview noch nicht, wird der nächste increase-Befehl ignoriert
 #Nach x Stunden seit BO oder nach x SO wird die Sell-Limit-Order auf x % gesetzt
-# bot_nr = Chart
-# botname = botname
 #
 
 #https://......../webhook
@@ -503,15 +500,20 @@ def firebase_lese_base_order_time(botname, firebase_secret):
     
 def set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
     endpoint = "/openApi/swap/v2/trade/leverage"
-
+    
+    # mappe positionSide auf side für Hebel-Setzung
+    side_map = {
+        "LONG": "BUY",
+        "SHORT": "SELL"
+    }
+    
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "side": position_side.upper()  # LONG oder SHORT
+        "positionSide": position_side.upper(),
+        "side": side_map.get(position_side.upper())  # korrektes Side-Value setzen
     }
-
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
-
 
 ### SHORT Funktionen
 # === Hilfsfunktionen ===
@@ -671,15 +673,16 @@ def SHORT_sende_telegram_nachricht(botname, text):
         return f"Telegram Fehler: {e}"
 
 # === Order-Funktionen (SHORT-optimiert) ===
-def SHORT_set_leverage(api_key, secret_key, symbol, leverage, position_side="LONG"):
+def SHORT_set_leverage(api_key, secret_key, symbol, leverage, position_side="SHORT"):
+    # position_side must be "SHORT" here; map side accordingly
     endpoint = "/openApi/swap/v2/trade/leverage"
-
+    side_map = {"LONG": "BUY", "SHORT": "SELL"}
     params = {
         "symbol": symbol,
         "leverage": int(leverage),
-        "side": position_side.upper()  # LONG oder SHORT
+        "positionSide": position_side.upper(),
+        "side": side_map.get(position_side.upper())
     }
-
     return send_signed_request("POST", endpoint, api_key, secret_key, params)
 
 def SHORT_place_market_order(api_key, secret_key, symbol, usdt_amount, position_side="SHORT"):
@@ -1042,54 +1045,7 @@ def webhook():
                     "result": ergebnis.get("result", None)
                 })  # <-- alle Klammern geschlossen
         else:
-
-
-
-
-             # === Hebel NUR vor echter Base Order setzen ===
-            position_size, _, _ = get_current_position(
-                api_key,
-                secret_key,
-                symbol,
-                position_side,
-                logs
-            )
-            
-            if position_size == 0 and action != "increase":
-                try:
-                    logs.append(
-                        f"Setze Hebel VOR Base Order auf {leverageB}x "
-                        f"(position_size={position_size})"
-                    )
-            
-                    leverage_response = set_leverage(
-                        api_key,
-                        secret_key,
-                        symbol,
-                        leverageB,
-                        position_side
-                    )
-            
-                    logs.append(f"Hebel-Response: {leverage_response}")
-            
-                    time.sleep(0.2)  # BingX Sync
-            
-                    if leverage_response.get("code") != 0:
-                        raise Exception(leverage_response)
-            
-                except Exception as e:
-                    logs.append(f"❌ Hebel konnte nicht gesetzt werden: {e}")
-                    return jsonify({
-                        "error": True,
-                        "msg": "Hebel konnte nicht gesetzt werden",
-                        "logs": logs
-                    })
-            else:
-                logs.append(
-                    f"Hebel NICHT gesetzt "
-                    f"(position_size={position_size}, action={action})"
-                )
-
+    
             
     
             available_usdt = 0.0
@@ -1109,23 +1065,14 @@ def webhook():
                 logs.append(f"Fehler bei Balance-Abfrage: {e}")
                 available_usdt = None
         
-
-
-            
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
+            # 1. Hebel setzen
+            try:
+                logs.append(f"Setze Hebel auf {leverageB} für {symbol} ({position_side})...")
+                leverage_response = set_leverage(api_key, secret_key, symbol, leverageB, position_side)
+                logs.append(f"Hebel gesetzt: {leverage_response}")
+            except Exception as e:
+                logs.append(f"Fehler beim Setzen des Hebels: {e}")
+        
             # 2. Offene Orders abrufen
             open_orders = {}
             try:
@@ -1591,8 +1538,6 @@ def webhook():
     
         # Weitere parameter
         pyramiding = float(data.get("RENDER", {}).get("pyramiding", 1))
-        leverageB = float(data.get("RENDER", {}).get("leverage", 1))     #float(data.get("leverage", 1))
-        sicherheit = float(data.get("RENDER", {}).get("sicherheit", 0) * leverageB)    #float(data.get("sicherheit", 0) * leverageB)
         leverage = float(data.get("RENDER", {}).get("leverage", 1))
         sicherheit_param = float(data.get("RENDER", {}).get("sicherheit", 0))
         # Hinweis: in vielen deiner bisherigen Codes wurde Sicherheiten mit Hebel multipliziert -> beibehalten falls gewünscht
@@ -1702,54 +1647,15 @@ def webhook():
             logs.append(f"Fehler bei Balance-Abfrage: {e}")
             SHORT_sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX bei Balance-Abfrage für Bot: {botname}")            
             available_usdt = None
-
-
-        # === SHORT: Hebel NUR vor echter Base Order setzen ===
-        position_size, _, _ = get_current_position(
-            api_key,
-            secret_key,
-            symbol,
-            "SHORT",
-            logs
-        )
-        
-        if position_size == 0 and action != "increase":
-            try:
-                logs.append(
-                    f"[SHORT] Setze Hebel VOR Base Order auf {leverageB}x "
-                    f"(position_size={position_size})"
-                )
-        
-                leverage_response = SHORT_set_leverage(
-                    api_key,
-                    secret_key,
-                    symbol,
-                    leverageB,
-                    "SHORT"  # <<< ENTSCHEIDEND
-                )
-        
-                logs.append(f"[SHORT] Hebel-Response: {leverage_response}")
-        
-                time.sleep(0.2)
-        
-                if leverage_response.get("code") != 0:
-                    raise Exception(leverage_response)
-        
-            except Exception as e:
-                logs.append(f"❌ [SHORT] Hebel konnte nicht gesetzt werden: {e}")
-                return jsonify({
-                    "error": True,
-                    "msg": "SHORT Hebel konnte nicht gesetzt werden",
-                    "logs": logs
-                })
-        else:
-            logs.append(
-                f"[SHORT] Hebel NICHT gesetzt "
-                f"(position_size={position_size}, action={action})"
-            )
-
     
-
+        # 1. Hebel setzen (SHORT)
+        try:
+            logs.append(f"Setze Hebel auf {leverage} für {symbol} (SHORT)...")
+            lev_resp = SHORT_set_leverage(api_key, secret_key, symbol, leverage, "SHORT")
+            logs.append(f"Leverage Response: {lev_resp}")
+        except Exception as e:
+            logs.append(f"Fehler beim Setzen des Hebels: {e}")
+    
         # 2. Offene Orders abrufen (um alte TP/SL/Limit zu handhaben)
         open_orders = {}
         try:
