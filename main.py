@@ -949,7 +949,7 @@ def webhook():
     global base_order_times
     global aktueller_Bot
     global ma_Wert
-
+    ma_Wert = {}
     data = request.json
     logs = []
 
@@ -1020,7 +1020,7 @@ def webhook():
 
             if ma == 1:
                 firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
-                ma_Wert = 1
+                ma_Wert[bot_nr] = 1
                 
             
             
@@ -1325,7 +1325,7 @@ def webhook():
                     status_fuer_alle[botname] = "Fehler"
 
             firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-            ma_Wert = 0
+            ma_Werte[bot_nr] = 0
             
             
             # 8. Durchschnittspreis bestimmen
