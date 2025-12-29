@@ -993,7 +993,7 @@ def webhook():
         beenden = data.get("RENDER", {}).get("beenden", "nein")
         sl = data.get("RENDER", {}).get("sl")
         bot_nr = data.get("RENDER", {}).get("bot_nr")
-        ma = data.get("RENDER", {}).get("ma")
+        ma = int(data.get("RENDER", {}).get("ma", 0))
         
 
       
