@@ -1284,7 +1284,7 @@ def webhook():
                         #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
                         #usdt_amount = max((account_size - sicherheit) * bo_factor, 0)
                         margin_budget = max((account_size - sicherheit) * bo_factor, 0)   # das ist jetzt Margin
-                        usdt_amount   = margin_budget * leverageB                         # das ist Positionswert
+                        usdt_amount   = margin_budget #* leverageB                         # das ist Positionswert
                         saved_usdt_amounts[botname] = usdt_amount
 
                         saved_usdt_amounts[botname] = usdt_amount
@@ -1914,7 +1914,7 @@ def webhook():
                     
                     #usdt_amount = max((account_size - sicherheit) * bo_factor, 0)   #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
                     margin_budget = max((account_size - sicherheit) * bo_factor, 0)   # das ist jetzt Margin
-                    usdt_amount   = margin_budget * leverageB                     # das ist Positionswert
+                    usdt_amount   = margin_budget #* leverageB                     # das ist Positionswert
                     saved_usdt_amounts[botname] = usdt_amount
 
                     saved_usdt_amounts[botname] = usdt_amount
