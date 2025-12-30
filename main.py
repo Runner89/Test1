@@ -1250,6 +1250,9 @@ def webhook():
                         "logs": logs
                     })
                 else:
+
+                    firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+                    ma_Wert[bot_nr] = 0
             
                     status_fuer_alle[botname] = "OK"
                     alarm_counter[botname] = -1
@@ -1366,9 +1369,6 @@ def webhook():
                 except Exception as e:
                     logs.append(f"Fehler beim Speichern des Kaufpreises: {e}")
                     status_fuer_alle[botname] = "Fehler"
-
-            firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-            ma_Wert[bot_nr] = 0
             
             
             # 8. Durchschnittspreis bestimmen
@@ -1882,6 +1882,10 @@ def webhook():
                 logs.append("Beenden=ja → Keine neue Base Order")
                 return jsonify({"status": "no_base_order_opened", "botname": botname, "reason": "beenden=ja", "logs": logs})
             else:
+
+                firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+                ma_Wert[bot_nr] = 0
+                
                 status_fuer_alle[botname] = "OK"
                 alarm_counter[botname] = -1
                 if botname in saved_usdt_amounts:
@@ -1987,8 +1991,7 @@ def webhook():
                 logs.append(f"Fehler beim Speichern Kaufpreis: {e}")
                 status_fuer_alle[botname] = "Fehler"
 
-        firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-        ma_Wert[bot_nr] = 0
+
 
     
         # 8. Durchschnittspreis (Firebase oder BingX fallback)
