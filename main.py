@@ -993,6 +993,7 @@ def webhook():
         price_from_webhook = data.get("RENDER", {}).get("price")    #data.get("price")
         usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))    #float(data.get("usdt_factor", 1))
         bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
+        bo_factor2 = float(data.get("RENDER", {}).get("bo_factor", 0.0001))    #float(data.get("bo_factor", 0.0001))
         action = data.get("vyn", {}).get("action", "").lower()    #KOMMT VON VYN     data.get("action", "").lower()
         base_time2 = data.get("RENDER", {}).get("base_time2")
         after_h = data.get("RENDER", {}).get("after_h")
@@ -1092,6 +1093,7 @@ def webhook():
                     # 3) wenn MA aktiv → Hebel NICHT setzen
                     if ma_aktiv == 1:
                         leverageB = leverage2
+                        bo_factor = bo_factor2
                         logs.append(
                             f"Hebel wurde geändert, da MA=1 "
                             f"(bot_nr={bot_nr}, position_size={position_size})"
