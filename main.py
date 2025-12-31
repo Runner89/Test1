@@ -84,6 +84,7 @@ status_fuer_alle = {}
 alarm_counter = {}
 base_order_times = {}
 aktueller_Bot = {}
+ma_Wert = {} 
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -955,8 +956,7 @@ def webhook():
     global status_fuer_alle
     global alarm_counter
     global base_order_times
-    global aktueller_Bot
-    
+    global aktueller_Bot    
     global ma_Wert
     data = request.json
     logs = []
