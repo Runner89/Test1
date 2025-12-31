@@ -1768,15 +1768,17 @@ def webhook():
             balance_response = SHORT_get_futures_balance(api_key, secret_key)
             logs.append(f"Balance Response: {balance_response}")
             if balance_response.get("code") == 0:
-                available_margin = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
-                available_usdt = available_margin * leverage
-                logs.append(f"Freies USDT Guthaben (mit Hebel): {available_usdt}")
+                balance_data_temp = float(balance_response.get("data", {}).get("balance", {}).get("availableMargin", 0))
+                available_usdt = balance_data_temp * leverageB
+                logs.append(f"Freies USDT Guthaben: {available_usdt}")
             else:
                 logs.append("Fehler beim Abrufen der Balance.")
         except Exception as e:
             logs.append(f"Fehler bei Balance-Abfrage: {e}")
             SHORT_sende_telegram_nachricht(botname, f"❌❌❌ Keine Verbindung zu BingX bei Balance-Abfrage für Bot: {botname}")            
             available_usdt = None
+
+        
 
 
         # === SHORT: Hebel NUR vor echter Base Order setzen ===
