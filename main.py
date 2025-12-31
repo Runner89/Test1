@@ -1092,7 +1092,7 @@ def webhook():
                 
                     # 3) wenn MA aktiv → Hebel NICHT setzen
                     if ma_aktiv == 1:
-                       
+                        leverageB = leverage2
                         logs.append(
                             f"Hebel wurde geändert, da MA=1 "
                             f"(bot_nr={bot_nr}, position_size={position_size})"
