@@ -1,4 +1,4 @@
-#29.12.2025
+#31.12.2025
 #nicht vyn
 
 
@@ -44,6 +44,7 @@
 #    "sicherheit": 96, Sicherheit muss nicht mal Hebel gerechnet werden, wird im Code gemacht
 #    "usdt_factor": 1.4,
 #    "bo_factor": 0.001, wie viel Prozent beträgt die BO im Verhältnis zum verfügbaren Guthaben unter Berücksichtung der Gewichtung aller SO
+#    "bo_factor2": 0.001, wie viel Prozent beträgt die BO im Verhältnis zum verfügbaren Guthaben unter Berücksichtung der Gewichtung aller SO nach einem SL
 #    "base_time2": "", darf nur beim Testen Inhalt enthalten, 2025-08-22T11:22:37.986015+00:00, simulierter Zeitpunkt der BO
 #    "after_h": 48, nach x Stunden seit BO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt oder
 #    "after_so": 14, nach x SO wird Sell-Limit-Order beim nächsten Kauf auf x Prozent gesetzt
