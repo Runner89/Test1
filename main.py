@@ -957,7 +957,7 @@ def webhook():
     global base_order_times
     global aktueller_Bot
     
-    ma_Wert = {}
+    global ma_Wert
     data = request.json
     logs = []
 
@@ -1945,10 +1945,12 @@ def webhook():
                     logs.append(f"Verfügbare Marge: {available_margin}")
                     logs.append(f"Position Marge: {position_margin}")
                     
+                    
                     #usdt_amount = max((account_size - sicherheit) * bo_factor, 0)   #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)
                     margin_budget = max((account_size - sicherheit) * bo_factor, 0)   # das ist jetzt Margin
                     usdt_amount   = margin_budget * leverageB                     # das ist Positionswert
                     saved_usdt_amounts[botname] = usdt_amount
+                    
 
                     saved_usdt_amounts[botname] = usdt_amount
                     logs.append(f"Erste Ordergröße berechnet: {usdt_amount}")
