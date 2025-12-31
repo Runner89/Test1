@@ -1275,31 +1275,27 @@ def webhook():
                     
                     account_size = available_margin + position_margin
 
+                    # === BO-Faktor abhängig von MA bestimmen (NUR Baseorder) ===
+                    if bot_nr in ma_Wert:
+                        ma_aktiv = ma_Wert.get(bot_nr, 0)
+                        logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                    else:
+                        ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
+                        logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                    
+                    if ma_aktiv == 1:
+                        bo_factor = bo_factor2
+                        logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                    else:
+                        logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
+
+
                     logs.append(f"RAW balance response: {balance_response}")
                     logs.append(f"Accountgrösse: {account_size}")
                     logs.append(f"Verfügbare Marge: {available_margin}")
                     logs.append(f"Position Marge: {position_margin}")
                                         
                     if available_usdt is not None and pyramiding > 0:
-
-                        if bot_nr in ma_Wert:
-                            ma_aktiv = ma_Wert.get(bot_nr, 0)
-                            logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
-                    
-                        # 2) falls nicht vorhanden → Firebase
-                        else:
-                            ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
-                            logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
-                    
-                        # 3) wenn MA aktiv → Hebel NICHT setzen
-                        if ma_aktiv == 1:
-                            bo_factor = bo_factor2
-                           
-                            logs.append(
-                                f"bo_factor 2 verwendet "
-                                f"(bot_nr={bot_nr}, position_size={bo_factor2})"
-                            )
-                            
                         # Erste Order bleibt unverändert
                         #usdt_amount = max(((available_usdt - sicherheit) * bo_factor), 0)    #max(((available_usdt - sicherheit) / pyramiding), 0)
                         #usdt_amount = max((account_size - sicherheit) * bo_factor, 0)
@@ -1917,25 +1913,6 @@ def webhook():
                     logs.append("Ordergröße im Cache gelöscht (erste Order)")
                 if available_usdt is not None and pyramiding > 0:
 
-                    if bot_nr in ma_Wert:
-                        ma_aktiv = ma_Wert.get(bot_nr, 0)
-                        logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
-                
-                    # 2) falls nicht vorhanden → Firebase
-                    else:
-                        ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
-                        logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
-                
-                    # 3) wenn MA aktiv → Hebel NICHT setzen
-                    if ma_aktiv == 1:
-                        bo_factor = bo_factor2
-
-                        logs.append(
-                            f"bo_factor 2 verwendet "
-                            f"(bot_nr={bot_nr}, position_size={bo_factor2})"
-                        )
-                       
-        
 
                     balance_response = get_futures_balance(api_key, secret_key)
                     
