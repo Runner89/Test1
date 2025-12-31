@@ -1252,8 +1252,6 @@ def webhook():
                     })
                 else:
 
-                    firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-                    ma_Wert[bot_nr] = 0
             
                     status_fuer_alle[botname] = "OK"
                     alarm_counter[botname] = -1
@@ -1288,6 +1286,9 @@ def webhook():
                         logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
                     else:
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
+
+                    firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+                    ma_Wert[bot_nr] = 0
 
 
                     logs.append(f"RAW balance response: {balance_response}")
