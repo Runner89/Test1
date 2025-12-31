@@ -1688,6 +1688,7 @@ def webhook():
         price_from_webhook = data.get("RENDER", {}).get("price")
         usdt_factor = float(data.get("RENDER", {}).get("usdt_factor", 1))
         bo_factor = float(data.get("RENDER", {}).get("bo_factor", 0.0001))
+        bo_factor2 = float(data.get("RENDER", {}).get("bo_factor2", 0.0001))
         action = data.get("vyn", {}).get("action", "").lower()
         base_time2 = data.get("RENDER", {}).get("base_time2")
         after_h = data.get("RENDER", {}).get("after_h", 48)
@@ -1904,8 +1905,6 @@ def webhook():
                 return jsonify({"status": "no_base_order_opened", "botname": botname, "reason": "beenden=ja", "logs": logs})
             else:
 
-                firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
-                ma_Wert[bot_nr] = 0
                 
                 status_fuer_alle[botname] = "OK"
                 alarm_counter[botname] = -1
@@ -1923,6 +1922,23 @@ def webhook():
                     position_margin = float(balance_data.get("usedMargin", 0))
                     
                     account_size = available_margin + position_margin
+
+                    # === BO-Faktor abhängig von MA bestimmen (NUR Baseorder) ===
+                    if bot_nr in ma_Wert:
+                        ma_aktiv = ma_Wert.get(bot_nr, 0)
+                        logs.append(f"MA aus RAM gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                    else:
+                        ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
+                        logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+                    
+                    if ma_aktiv == 1:
+                        bo_factor = bo_factor2
+                        logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                    else:
+                        logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
+
+                    firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
+                    ma_Wert[bot_nr] = 0
 
                     logs.append(f"RAW balance response: {balance_response}")
                     logs.append(f"Accountgrösse: {account_size}")
