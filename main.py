@@ -87,6 +87,7 @@ base_order_times = {}
 aktueller_Bot = {}
 ma_Wert = {} 
 recovery_trade = {} 
+recovery_pending = {}
 
 
 def generate_signature(secret_key: str, params: str) -> str:
@@ -962,6 +963,8 @@ def webhook():
     global aktueller_Bot    
     global ma_Wert
     global recovery_trade
+    global recovery_pending
+
     data = request.json
     logs = []
 
