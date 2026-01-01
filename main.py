@@ -1041,6 +1041,10 @@ def webhook():
             if recovery_trade.get(bot_nr) == "ja" and ma == 1:
                 sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
                 recovery_trade[bot_nr] = "nein"
+
+            if recovery_trade.get(bot_nr) == "ja" and ma == 0:
+                recovery_trade[bot_nr] = "nein"
+                
                 
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
@@ -1748,6 +1752,9 @@ def webhook():
 
             if recovery_trade.get(bot_nr) == "ja" and ma == 1:
                 sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
+                recovery_trade[bot_nr] = "nein"
+
+            if recovery_trade.get(bot_nr) == "ja" and ma == 0:
                 recovery_trade[bot_nr] = "nein"
 
             print(f"MA-Wert für Bot_Nr = {ma}")    
