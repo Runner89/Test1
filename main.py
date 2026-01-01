@@ -4,7 +4,8 @@
 
 #Botname wird ignoriert.
 #Market Order mit Hebel wird gesetzt
-#Hebel muss in BINGX selber vorher eingestellt werden
+#Hebel wird in BINGX über den Code angepasst
+#Falls Hebel bei LONG 1 ist, wird 0.7% des Durschnittspreises der Liqudationspreis genommen, da es bei LONG 1x kein Liquidationspreis gibt, bei SHORT 1x gibt es einen Liquidationspreis
 #Preis, welcher im JSON übergeben wurde, wird in Firebase gespeichert
 #der gewichtete Durchschnittspreis wird von Firebase berechnet und entsprechend die Sell-Limit Order gesetzt
 #Bei Alarm wird angegeben, ab welcher SO ein Alarm via Telegramm gesendet wird
@@ -23,6 +24,7 @@
 # bot_nr = Chart
 # botname = botname
 # Endet der recovery Trade auch im SL, wird eine Telegramm-Nachricht gesendet
+
 
 #https://......../webhook
 # action wird vom vyn genommen
