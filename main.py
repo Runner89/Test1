@@ -1411,7 +1411,7 @@ def webhook():
                     if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
                         avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
                                                                    
-                if position_side == "LONG" and leverage == 1 and avg_price:
+                if position_side == "LONG" and leverage == 1:
                     liquidation_price = avg_price * 0.80
                     logs.append(
                         f"LONG 1x erkannt → pseudo liquidation_price = {liquidation_price} (20% unter avgPrice {avg_price})"
