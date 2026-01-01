@@ -22,7 +22,7 @@
 #Nach x Stunden seit BO oder nach x SO wird die Sell-Limit-Order auf x % gesetzt
 # bot_nr = Chart
 # botname = botname
-#
+# Endet der recovery Trade auch im SL, wird eine Telegramm-Nachricht gesendet
 
 #https://......../webhook
 # action wird vom vyn genommen
