@@ -1038,16 +1038,23 @@ def webhook():
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
 
+            position_side = str(position_side).strip().upper()
+            bot_nr = int(bot_nr)
             key = (bot_nr, position_side)
-
-            if recovery_trade.get(key) == "ja":
-                if ma == 1:
-                    sende_telegram_nachricht(
-                        botname,
-                        f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
-                    )
-                # Recovery endet bei jedem close dieser Side
-                recovery_trade.pop(key, None)
+            
+            # Wenn diese Position ein Recovery-Trade war und im SL endet -> Telegram
+            if recovery_trade.get(key) == "ja" and ma == 1:
+                sende_telegram_nachricht(
+                    botname,
+                    f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
+                )
+            
+            # Recovery-Flag dieser Side endet bei jedem close dieser Side
+            recovery_trade.pop(key, None)
+            
+            # Wenn SL (ma==1), dann Recovery für den Bot "armen" (für den nächsten Trade)
+            if ma == 1:
+                recovery_pending[bot_nr] = True
                 
                 
             print(f"MA-Wert für Bot_Nr = {ma}")    
@@ -1297,12 +1304,25 @@ def webhook():
                     else:
                         ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
                         logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+
+                    position_side = str(position_side).strip().upper()
+                    bot_nr = int(bot_nr)
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
-                        recovery_trade[(bot_nr, position_side)] = "ja"
-                        logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                    
+                        # ✅ nur wenn zuvor ein SL passiert ist -> das ist wirklich der Recovery-Trade
+                        if recovery_pending.get(bot_nr) is True:
+                            recovery_trade[(bot_nr, position_side)] = "ja"
+                            recovery_pending.pop(bot_nr, None)
+                            logs.append(f"Recovery aktiviert für {(bot_nr, position_side)}")
+                            logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                        else:
+                            # optional: verhindert falsche Recovery-Markierung
+                            logs.append("MA=1 aber kein recovery_pending -> Recovery NICHT markiert")
+                    
                     else:
+                        bo_factor = bo_factor
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
 
                     firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
@@ -1754,16 +1774,24 @@ def webhook():
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
 
+            position_side = str(position_side).strip().upper()
+            bot_nr = int(bot_nr)
             key = (bot_nr, position_side)
+            
+            # Wenn diese Position ein Recovery-Trade war und im SL endet -> Telegram
+            if recovery_trade.get(key) == "ja" and ma == 1:
+                sende_telegram_nachricht(
+                    botname,
+                    f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
+                )
+            
+            # Recovery-Flag dieser Side endet bei jedem close dieser Side
+            recovery_trade.pop(key, None)
+            
+            # Wenn SL (ma==1), dann Recovery für den Bot "armen" (für den nächsten Trade)
+            if ma == 1:
+                recovery_pending[bot_nr] = True
 
-            if recovery_trade.get(key) == "ja":
-                if ma == 1:
-                    sende_telegram_nachricht(
-                        botname,
-                        f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
-                    )
-                # Recovery endet bei jedem close dieser Side
-                recovery_trade.pop(key, None)
 
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
@@ -1961,13 +1989,29 @@ def webhook():
                     else:
                         ma_aktiv = firebase_lese_ma_wert(bot_nr, firebase_secret)
                         logs.append(f"MA aus Firebase gelesen: {ma_aktiv} (bot_nr={bot_nr})")
+
+                    position_side = str(position_side).strip().upper()
+                    bot_nr = int(bot_nr)
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
-                        recovery_trade[(bot_nr, position_side)] = "ja"
-                        logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                    
+                        # ✅ nur wenn zuvor ein SL passiert ist -> das ist wirklich der Recovery-Trade
+                        if recovery_pending.get(bot_nr) is True:
+                            recovery_trade[(bot_nr, position_side)] = "ja"
+                            recovery_pending.pop(bot_nr, None)
+                            logs.append(f"Recovery aktiviert für {(bot_nr, position_side)}")
+                            logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
+                        else:
+                            # optional: verhindert falsche Recovery-Markierung
+                            logs.append("MA=1 aber kein recovery_pending -> Recovery NICHT markiert")
+                    
                     else:
+                        bo_factor = bo_factor
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
+
+
+                    
 
                     firebase_setze_ma_wert(bot_nr, 0, firebase_secret)
                     ma_Wert[bot_nr] = 0
