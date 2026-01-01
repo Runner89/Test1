@@ -1405,6 +1405,17 @@ def webhook():
             # 5. Positionsgröße und Liquidationspreis ermitteln
             try:
                 sell_quantity, positions_raw, liquidation_price = get_current_position(api_key, secret_key, symbol, position_side, logs)
+                
+                # ✅ Fallback: LONG + Hebel 1 → "Pseudo-Liquidationspreis" = 20% unter avgPrice
+                for pos in positions_raw:
+                    if pos.get("symbol") == symbol and pos.get("positionSide", "").upper() == position_side.upper():
+                        avg_price = float(pos.get("avgPrice", 0)) or float(pos.get("averagePrice", 0))
+                                                                   
+                if position_side == "LONG" and leverage == 1 and avg_price:
+                    liquidation_price = avg_price * 0.80
+                    logs.append(
+                        f"LONG 1x erkannt → pseudo liquidation_price = {liquidation_price} (20% unter avgPrice {avg_price})"
+                    )
         
                 if sell_quantity == 0:
                     executed_qty_str = order_response.get("data", {}).get("order", {}).get("executedQty")
