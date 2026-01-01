@@ -86,6 +86,8 @@ alarm_counter = {}
 base_order_times = {}
 aktueller_Bot = {}
 ma_Wert = {} 
+recovery_trade = {} 
+
 
 def generate_signature(secret_key: str, params: str) -> str:
     return hmac.new(secret_key.encode('utf-8'), params.encode('utf-8'), hashlib.sha256).hexdigest()
@@ -959,6 +961,7 @@ def webhook():
     global base_order_times
     global aktueller_Bot    
     global ma_Wert
+    global recovery_trade
     data = request.json
     logs = []
 
@@ -1034,6 +1037,10 @@ def webhook():
             if bot_nr in aktueller_Bot and aktueller_Bot[bot_nr] == botname:
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
+
+            if recovery_trade.get(bot_nr) == "ja" and ma == 1:
+                sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
+                recovery_trade[bot_nr] = "nein"
                 
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
@@ -1094,6 +1101,7 @@ def webhook():
                     # 3) wenn MA aktiv → Hebel NICHT setzen
                     if ma_aktiv == 1:
                         leverageB = leverage2
+            
                         logs.append(
                             f"Hebel wurde geändert, da MA=1 "
                             f"(bot_nr={bot_nr}, position_size={position_size})"
@@ -1284,6 +1292,7 @@ def webhook():
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
+                        recovery_trade[bot_nr] = "ja"
                         logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
                     else:
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
@@ -1737,6 +1746,10 @@ def webhook():
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
 
+            if recovery_trade.get(bot_nr) == "ja" and ma == 1:
+                sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
+                recovery_trade[bot_nr] = "nein"
+
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
                 res = firebase_setze_ma_wert(bot_nr, 1, firebase_secret)
@@ -1936,6 +1949,7 @@ def webhook():
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
+                        recovery_trade[bot_nr] = "ja"
                         logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
                     else:
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
