@@ -1038,12 +1038,16 @@ def webhook():
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
 
-            if recovery_trade.get(bot_nr) == "ja" and ma == 1:
-                sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
-                recovery_trade[bot_nr] = "nein"
+            key = (bot_nr, position_side)
 
-            if recovery_trade.get(bot_nr) == "ja" and ma == 0:
-                recovery_trade[bot_nr] = "nein"
+            if recovery_trade.get(key) == "ja":
+                if ma == 1:
+                    sende_telegram_nachricht(
+                        botname,
+                        f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
+                    )
+                # Recovery endet bei jedem close dieser Side
+                recovery_trade.pop(key, None)
                 
                 
             print(f"MA-Wert für Bot_Nr = {ma}")    
@@ -1296,7 +1300,7 @@ def webhook():
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
-                        recovery_trade[bot_nr] = "ja"
+                        recovery_trade[(bot_nr, position_side)] = "ja"
                         logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
                     else:
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
@@ -1750,12 +1754,16 @@ def webhook():
                 del aktueller_Bot[bot_nr]  # Eintrag löschen
                 print(f"Bot {botname} mit Nummer {bot_nr} wurde aus der globalen Variable gelöscht")
 
-            if recovery_trade.get(bot_nr) == "ja" and ma == 1:
-                sende_telegram_nachricht(botname, f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_name={botname}") 
-                recovery_trade[bot_nr] = "nein"
+            key = (bot_nr, position_side)
 
-            if recovery_trade.get(bot_nr) == "ja" and ma == 0:
-                recovery_trade[bot_nr] = "nein"
+            if recovery_trade.get(key) == "ja":
+                if ma == 1:
+                    sende_telegram_nachricht(
+                        botname,
+                        f"⚠️ Recovery-Trade im StopLoss beendet (close). bot_nr={bot_nr}, side={position_side}"
+                    )
+                # Recovery endet bei jedem close dieser Side
+                recovery_trade.pop(key, None)
 
             print(f"MA-Wert für Bot_Nr = {ma}")    
             if ma == 1:
@@ -1956,7 +1964,7 @@ def webhook():
                     
                     if ma_aktiv == 1:
                         bo_factor = bo_factor2
-                        recovery_trade[bot_nr] = "ja"
+                        recovery_trade[(bot_nr, position_side)] = "ja"
                         logs.append(f"bo_factor2 verwendet (MA=1): {bo_factor2}")
                     else:
                         logs.append(f"bo_factor verwendet (MA=0): {bo_factor}")
